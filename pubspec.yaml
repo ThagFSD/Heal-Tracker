@@ -1,6 +1,6 @@
 name: healtracker
 description: "A new Flutter project."
-publish_to: 'none'
+publish_to: "none"
 version: 0.1.0
 
 environment:
@@ -10,10 +10,34 @@ dependencies:
   flutter:
     sdk: flutter
 
+  cupertino_icons: ^1.0.8
+  flutter_circle_color_picker: ^0.3.0
+  flutter_dotenv: ^5.0.0
+  flutter_svg: ^0.22.0
+  font_awesome_flutter: ^9.1.0
+  google_fonts: ^2.1.0
+  http: ^0.13.3
+  lottie: ^1.0.1
+  mqtt_client: ^9.3.1
+  flutter_blue_plus: ^1.35.3
+  permission_handler: ^11.4.0
+  get: ^4.6.6
+  get_storage: ^2.1.1
+  fl_chart: ^0.68.0
+  intl: ^0.19.0
+
+  # --- FIREBASE ---
+  firebase_core: ^3.15.2
+  firebase_auth: ^5.1.1
+  cloud_firestore: ^5.0.2
+  google_sign_in: ^6.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_blue_plus: ^1.35.3
+  permission_handler: ^11.4.0
 
 flutter:
   uses-material-design: true

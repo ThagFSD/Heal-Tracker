@@ -1,0 +1,82 @@
+{
+  "project_info": {
+    "project_number": "272804287975",
+    "project_id": "heal-tracker-b24f2",
+    "storage_bucket": "heal-tracker-b24f2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:272804287975:android:364264738d428569d05942",
+        "android_client_info": {
+          "package_name": "com.example.healtracker"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "272804287975-tund1uo5961j9jm1ig2c8tjoa2ale3fn.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA0MHQQsjFgUds5lqtuyoc9QU483VEQ1P8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "272804287975-tund1uo5961j9jm1ig2c8tjoa2ale3fn.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "272804287975-uj0b9sv1nqvrj319at5cnm07kddqh91l.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.senurah.bleEsp32"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:272804287975:android:bd218303b348ac07d05942",
+        "android_client_info": {
+          "package_name": "com.senurah.ble_esp32"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "272804287975-tund1uo5961j9jm1ig2c8tjoa2ale3fn.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA0MHQQsjFgUds5lqtuyoc9QU483VEQ1P8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "272804287975-tund1uo5961j9jm1ig2c8tjoa2ale3fn.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "272804287975-uj0b9sv1nqvrj319at5cnm07kddqh91l.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.senurah.bleEsp32"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
