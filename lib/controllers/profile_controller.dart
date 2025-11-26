@@ -1,27 +1,35 @@
 // lib/controllers/profile_controller.dart
 
 import 'package:get/get.dart';
-// import 'package:get_storage/get_storage.dart'; // <-- Bỏ GetStorage
-import 'package:cloud_firestore/cloud_firestore.dart'; // <-- Dùng Firestore
-import 'package:firebase_auth/firebase_auth.dart'; // <-- Dùng Firebase Auth
-import 'auth_controller.dart'; // Import AuthController
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'auth_controller.dart';
 
 class ProfileController extends GetxController {
-  // Bỏ: final box = GetStorage();
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // (Các biến .obs giữ nguyên)
   var gender = Rxn<String>('male');
   var birthday = Rxn<DateTime>();
   var height = 0.obs;
   var weight = 0.obs;
-  var relativePhone = "".obs; 
+  var relativePhone = "".obs;
+
+  // [NEW] Tính tuổi tự động
+  int get age {
+    if (birthday.value == null) return 25; // Mặc định nếu chưa có sinh nhật
+    final now = DateTime.now();
+    int age = now.year - birthday.value!.year;
+    if (now.month < birthday.value!.month || 
+        (now.month == birthday.value!.month && now.day < birthday.value!.day)) {
+      age--;
+    }
+    return age;
+  }
 
   @override
   void onInit() {
     super.onInit();
-    // Tự động tải profile khi user thay đổi (lắng nghe AuthController)
     ever(Get.find<AuthController>().firebaseUser, (User? user) {
       if (user != null) {
         loadProfile(user.uid);
@@ -29,12 +37,10 @@ class ProfileController extends GetxController {
     });
   }
 
-  // Tải profile từ Firestore
   Future<void> loadProfile(String userId) async {
     final doc = await _db.collection('users').doc(userId).get();
     if (doc.exists && doc.data() != null) {
       final data = doc.data()!;
-      
       gender.value = data['gender'] ?? 'male';
       if (data['birthday'] != null) {
         birthday.value = (data['birthday'] as Timestamp).toDate();
@@ -45,27 +51,29 @@ class ProfileController extends GetxController {
     }
   }
 
-  // Lưu profile vào Firestore
   Future<void> saveProfile(String newGender, DateTime newBirthday, int newHeight, int newWeight, String newPhone) async {
     final user = _auth.currentUser;
-    if (user == null) return; // Không thể lưu nếu chưa đăng nhập
+    if (user == null) return;
 
-    // Dữ liệu cần lưu
     final profileData = {
       'gender': newGender,
-      'birthday': Timestamp.fromDate(newBirthday), // Chuyển DateTime thành Timestamp
+      'birthday': Timestamp.fromDate(newBirthday),
       'height': newHeight,
       'weight': newWeight,
       'relativePhone': newPhone,
     };
 
     try {
-      // Dùng 'set' với 'merge: true' để cập nhật
       await _db.collection('users').doc(user.uid).set(profileData, SetOptions(merge: true));
       
-      // Báo cho AuthController biết là đã hoàn thành
+      // Cập nhật giá trị local ngay lập tức để UI phản hồi
+      gender.value = newGender;
+      birthday.value = newBirthday;
+      height.value = newHeight;
+      weight.value = newWeight;
+      relativePhone.value = newPhone;
+
       Get.find<AuthController>().isProfileComplete(true);
-      // Điều hướng về Home (vì profile đã xong)
       Get.offAllNamed("/home"); 
 
     } catch (e) {

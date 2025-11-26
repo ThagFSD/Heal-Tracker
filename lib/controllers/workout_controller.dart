@@ -1,115 +1,139 @@
 // lib/controllers/workout_controller.dart
 
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart'; // [NEW]
+import 'package:firebase_auth/firebase_auth.dart';     // [NEW]
 import 'package:get/get.dart';
+import '../models/workout_session.dart';               // [NEW]
 import 'ble_controller.dart';
 import 'profile_controller.dart';
 
-// Định nghĩa các trạng thái tập luyện
 enum WorkoutState { idle, running }
 
 class WorkoutController extends GetxController {
   final BLEController bleController = Get.find();
   final ProfileController profileController = Get.find();
+  
+  // Firebase instances
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // Biến trạng thái
   var workoutState = WorkoutState.idle.obs;
   var sessionDuration = Duration.zero.obs;
   var sessionSteps = 0.obs;
   var sessionDistance = 0.0.obs;
-  var sessionCalories = 0.obs; // Calo trong phiên
+  var sessionCalories = 0.obs;
   var goalDisplay = "---".obs;
 
-  // Biến nội bộ
   Timer? _sessionTimer;
   StreamSubscription? _stepsSubscription;
   StreamSubscription? _caloriesSubscription;
   int _initialSteps = 0;
   int _initialCalories = 0;
+  
+  // Lưu thời gian bắt đầu để lưu vào history
+  DateTime? _startTime;
 
-  // Bắt đầu một buổi tập mới
   void startWorkout(String goalType, int goalValue) {
-    // 1. Lấy giá trị ban đầu để so sánh
     _initialSteps = int.tryParse(bleController.steps.value) ?? 0;
     _initialCalories = int.tryParse(bleController.calories.value) ?? 0;
+    _startTime = DateTime.now(); // [NEW]
 
-    // 2. Reset giá trị phiên
     sessionDuration.value = Duration.zero;
     sessionSteps.value = 0;
     sessionDistance.value = 0.0;
     sessionCalories.value = 0;
 
-    // 3. Đặt mục tiêu
     if (goalType == 'time') {
       goalDisplay.value = "Mục tiêu: $goalValue phút";
     } else {
       goalDisplay.value = "Mục tiêu: $goalValue kcal";
     }
 
-    // 4. Gửi lệnh "S" (Start) đến ESP32
     bleController.sendCommand("S");
 
-    // 5. Bắt đầu theo dõi
     workoutState.value = WorkoutState.running;
     _startTimer();
     _listenToMetrics();
   }
 
-  // Kết thúc buổi tập
-  void endWorkout() {
-    // 1. Gửi lệnh "E" (End) đến ESP32
+  // [UPDATED] End Workout and Save to Firebase
+  Future<void> endWorkout() async {
     bleController.sendCommand("E");
 
-    // 2. Dừng theo dõi
+    // 1. Lưu session hiện tại vào biến tạm trước khi reset
+    final finishedSession = WorkoutSession(
+      id: '', // Firestore sẽ tự tạo ID
+      startTime: _startTime ?? DateTime.now(),
+      durationSeconds: sessionDuration.value.inSeconds,
+      steps: sessionSteps.value,
+      calories: sessionCalories.value,
+      distanceKm: sessionDistance.value,
+      goalType: goalDisplay.value,
+    );
+
+    // 2. Reset trạng thái
     workoutState.value = WorkoutState.idle;
     _sessionTimer?.cancel();
     _stepsSubscription?.cancel();
     _caloriesSubscription?.cancel();
+
+    // 3. Lưu vào Firebase
+    await _saveSessionToFirebase(finishedSession);
   }
 
-  // Bắt đầu bộ đếm giờ
+  Future<void> _saveSessionToFirebase(WorkoutSession session) async {
+    User? user = _auth.currentUser;
+    if (user == null) return;
+
+    try {
+      await _db
+          .collection('users')
+          .doc(user.uid)
+          .collection('workouts') // Collection mới cho Workouts
+          .add(session.toMap());
+      
+      Get.snackbar("Thành công", "Đã lưu kết quả tập luyện!");
+    } catch (e) {
+      Get.snackbar("Lỗi", "Không thể lưu kết quả tập luyện: $e");
+    }
+  }
+
   void _startTimer() {
-    _sessionTimer?.cancel(); // Hủy timer cũ
+    _sessionTimer?.cancel();
     _sessionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       sessionDuration.value += const Duration(seconds: 1);
-      // (Bạn có thể thêm logic kiểm tra nếu đạt mục tiêu thời gian ở đây)
     });
   }
 
-  // Lắng nghe thay đổi từ BLEController
   void _listenToMetrics() {
-    // Lắng nghe Bước chân
     _stepsSubscription?.cancel();
     _stepsSubscription = bleController.steps.listen((totalStepsStr) {
       int totalSteps = int.tryParse(totalStepsStr) ?? 0;
-      sessionSteps.value = totalSteps - _initialSteps;
+      // Đảm bảo không âm nếu thiết bị reset
+      int diff = totalSteps - _initialSteps;
+      if (diff < 0) _initialSteps = totalSteps; 
       
-      // Tính quãng đường (km)
+      sessionSteps.value = diff > 0 ? diff : 0;
       sessionDistance.value = _calculateDistanceKm(sessionSteps.value);
     });
 
-    // Lắng nghe Calories
     _caloriesSubscription?.cancel();
     _caloriesSubscription = bleController.calories.listen((totalCaloriesStr) {
       int totalCalories = int.tryParse(totalCaloriesStr) ?? 0;
-      sessionCalories.value = totalCalories - _initialCalories;
-      // (Bạn có thể thêm logic kiểm tra nếu đạt mục tiêu calories ở đây)
+      int diff = totalCalories - _initialCalories;
+      sessionCalories.value = diff > 0 ? diff : 0;
     });
   }
 
-  // Tính quãng đường (công thức giả định)
   double _calculateDistanceKm(int steps) {
-    // Lấy chiều cao (cm) từ profile
     int heightCm = profileController.height.value;
-    if (heightCm == 0) heightCm = 170; // Mặc định 1.7m
-
-    // Ước tính độ dài sải chân (ví dụ: 41.4% chiều cao)
+    if (heightCm == 0) heightCm = 170;
     double strideLengthCm = heightCm * 0.414;
     double totalMeters = (steps * strideLengthCm) / 100;
-    return totalMeters / 1000; // Đổi sang km
+    return totalMeters / 1000;
   }
 
-  // Dọn dẹp khi controller bị hủy
   @override
   void onClose() {
     _sessionTimer?.cancel();

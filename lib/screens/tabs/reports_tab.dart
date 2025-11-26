@@ -6,10 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart'; 
+import 'package:cloud_firestore/cloud_firestore.dart'; 
+import 'package:firebase_auth/firebase_auth.dart';     
 import '../../controllers/ble_controller.dart';
 import '../../models/health_data.dart';
+import '../../models/workout_session.dart';            
 
-// (Lớp DailySummary giữ nguyên)
 class DailySummary {
   final DateTime date;
   final double avgHeartRate;
@@ -25,41 +27,52 @@ class DailySummary {
   });
 }
 
-// ===========================================
-// SỬA LỖI 1: Đổi tên class
-// ===========================================
 class ReportsTab extends StatefulWidget {
-  ReportsTab({super.key});
+  const ReportsTab({super.key});
   
   @override
-  // ===========================================
-  // SỬA LỖI 2: Đổi tên State
-  // ===========================================
   State<ReportsTab> createState() => _ReportsTabState();
 
+  // ==============================================================
+  // FIX: Shift Window to "Yesterday" (Past 7 Days excluding Today)
+  // ==============================================================
   List<DailySummary> generateDailyReports(List<HealthDataPoint> history) {
+    if (history.isEmpty) return [];
+
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final sevenDaysAgo = today.subtract(const Duration(days: 6)); 
-    final recentData =
-        history.where((d) => !d.timestamp.isBefore(sevenDaysAgo)).toList();
+    // Start from Yesterday (ignore partial data from Today)
+    final yesterday = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 1));
+    final startDay = yesterday.subtract(const Duration(days: 6)); 
+
+    // Filter: Date must be AFTER or ON startDay AND BEFORE or ON yesterday
+    final recentData = history.where((d) {
+      final date = DateTime(d.timestamp.year, d.timestamp.month, d.timestamp.day);
+      return !date.isBefore(startDay) && !date.isAfter(yesterday);
+    }).toList();
+
     if (recentData.isEmpty) return [];
+
     Map<DateTime, List<HealthDataPoint>> groupedData = {};
     for (var data in recentData) {
-      final dayKey =
-          DateTime(data.timestamp.year, data.timestamp.month, data.timestamp.day);
+      final dayKey = DateTime(data.timestamp.year, data.timestamp.month, data.timestamp.day);
       if (!groupedData.containsKey(dayKey)) {
         groupedData[dayKey] = [];
       }
       groupedData[dayKey]!.add(data);
     }
+
     List<DailySummary> summaries = [];
     groupedData.forEach((day, dataList) {
       if (dataList.isEmpty) return;
+      
+      // Since BLEController now stores "Rolling Averages" in Firestore, 
+      // the data points here are already averages. We just take them directly.
+      // (Or average them if multiple entries exist per day, which shouldn't happen with new logic)
       double totalHeartRate = dataList.map((d) => d.heartRate).reduce((a, b) => a + b).toDouble();
       double totalSpO2 = dataList.map((d) => d.spO2).reduce((a, b) => a + b).toDouble();
       int maxSteps = dataList.map((d) => d.steps).reduce(max);
       int maxCalories = dataList.map((d) => d.calories).reduce(max);
+
       summaries.add(DailySummary(
         date: day,
         avgHeartRate: totalHeartRate / dataList.length,
@@ -68,9 +81,11 @@ class ReportsTab extends StatefulWidget {
         maxCalories: maxCalories,
       ));
     });
+
     summaries.sort((a, b) => a.date.compareTo(b.date)); 
     return summaries;
   }
+
   Map<String, double> calculateOverallAverage(List<DailySummary> summaries) {
     if (summaries.isEmpty) {
       return {"avgHeart": 0.0, "avgSpO2": 0.0, "avgSteps": 0.0, "avgCalories": 0.0};
@@ -94,9 +109,6 @@ class ReportsTab extends StatefulWidget {
   }
 }
 
-// ===========================================
-// SỬA LỖI 3: Đổi tên class State
-// ===========================================
 class _ReportsTabState extends State<ReportsTab> {
   final BLEController bleController = Get.find();
   int _selectedView = 0; 
@@ -114,7 +126,7 @@ class _ReportsTabState extends State<ReportsTab> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'reports_7_day'.tr,
+                  _selectedView == 2 ? 'Lịch sử tập' : 'Past 7 Days', // Updated Title
                   style: Theme.of(context)
                       .textTheme
                       .headlineSmall
@@ -124,6 +136,7 @@ class _ReportsTabState extends State<ReportsTab> {
                   children: const {
                     0: Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Icon(Icons.list_alt, size: 20)),
                     1: Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Icon(Icons.bar_chart, size: 20)),
+                    2: Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Icon(Icons.fitness_center, size: 20)),
                   },
                   onValueChanged: (int value) {
                     setState(() {
@@ -139,35 +152,37 @@ class _ReportsTabState extends State<ReportsTab> {
             ),
             const SizedBox(height: 16),
             Expanded(
-              child: Obx(() {
-                final summaries = widget.generateDailyReports(bleController.healthDataHistory);
-                final overallAverage = widget.calculateOverallAverage(summaries);
-    
-                if (summaries.isEmpty) {
-                  return Center(
-                    child: Text(
-                      'no_report_data'.tr,
-                      style: TextStyle(
-                        fontSize: 16, 
-                        color: Theme.of(context).textTheme.bodySmall?.color
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  );
-                }
-    
-                return Column(
-                  children: [
-                    _buildOverallSummaryCard(context, overallAverage),
-                    const SizedBox(height: 16),
-                    Expanded(
-                      child: _selectedView == 1
-                          ? _buildChartView(context, summaries) 
-                          : _buildSummaryListView(context, summaries.reversed.toList()), 
-                    ),
-                  ],
-                );
-              }),
+              child: _selectedView == 2
+                  ? _buildWorkoutHistoryList()
+                  : Obx(() {
+                      final summaries = widget.generateDailyReports(bleController.healthDataHistory);
+                      final overallAverage = widget.calculateOverallAverage(summaries);
+          
+                      if (summaries.isEmpty) {
+                        return Center(
+                          child: Text(
+                            'no_report_data'.tr,
+                            style: TextStyle(
+                              fontSize: 16, 
+                              color: Theme.of(context).textTheme.bodySmall?.color
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        );
+                      }
+          
+                      return Column(
+                        children: [
+                          _buildOverallSummaryCard(context, overallAverage),
+                          const SizedBox(height: 16),
+                          Expanded(
+                            child: _selectedView == 1
+                                ? _buildChartView(context, summaries) 
+                                : _buildSummaryListView(context, summaries.reversed.toList()), 
+                          ),
+                        ],
+                      );
+                    }),
             ),
           ],
         ),
@@ -175,7 +190,68 @@ class _ReportsTabState extends State<ReportsTab> {
     );
   }
 
-  /// Thẻ tóm tắt trung bình 7 ngày
+  // ... (Keep existing Widgets: _buildWorkoutHistoryList, _buildOverallSummaryCard, etc.)
+  // (Paste the rest of the file content here from the previous version provided in Turn 3)
+  // ...
+
+  Widget _buildWorkoutHistoryList() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const Center(child: Text("Vui lòng đăng nhập"));
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('workouts')
+          .orderBy('startTime', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const Center(child: Text("Chưa có dữ liệu tập luyện"));
+        }
+
+        final workouts = snapshot.data!.docs.map((doc) {
+          return WorkoutSession.fromMap(doc.id, doc.data() as Map<String, dynamic>);
+        }).toList();
+
+        return ListView.builder(
+          itemCount: workouts.length,
+          itemBuilder: (context, index) {
+            final session = workouts[index];
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Colors.orange.withOpacity(0.2),
+                  child: const Icon(Icons.directions_run, color: Colors.orange),
+                ),
+                title: Text(
+                  DateFormat('dd/MM/yyyy - HH:mm').format(session.startTime),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(
+                    "Thời gian: ${session.durationSeconds ~/ 60}p ${session.durationSeconds % 60}s\n"
+                    "Calo: ${session.calories} kcal | Bước: ${session.steps}"),
+                trailing: Text(
+                  "${session.distanceKm.toStringAsFixed(2)} km",
+                  style: TextStyle(
+                    fontSize: 16, 
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).primaryColor
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildOverallSummaryCard(BuildContext context, Map<String, double> averages) {
     return Card(
       color: Theme.of(context).cardColor,
@@ -240,7 +316,6 @@ class _ReportsTabState extends State<ReportsTab> {
     );
   }
 
-  /// View 1: Danh sách tóm tắt (List View)
   Widget _buildSummaryListView(BuildContext context, List<DailySummary> summaries) {
     return ListView.builder(
       itemCount: summaries.length,
@@ -250,7 +325,6 @@ class _ReportsTabState extends State<ReportsTab> {
     );
   }
 
-  /// View 2: Biểu đồ (Chart View)
   Widget _buildChartView(BuildContext context, List<DailySummary> summaries) {
     return SingleChildScrollView(
       child: Column(
@@ -283,7 +357,6 @@ class _ReportsTabState extends State<ReportsTab> {
     );
   }
 
-  /// Widget Card cho Báo cáo (Dạng List Item)
   Widget _buildReportListItem(BuildContext context, DailySummary summary) {
     final formattedDate = DateFormat('dd/MM/yyyy').format(summary.date);
 
@@ -339,7 +412,6 @@ class _ReportsTabState extends State<ReportsTab> {
     );
   }
 
-  /// Widget Item con trong Card Báo cáo
   Widget _buildSummaryItem(
     BuildContext context, { 
     required IconData icon,
@@ -363,7 +435,6 @@ class _ReportsTabState extends State<ReportsTab> {
     );
   }
 
-  /// Widget Card chứa Biểu đồ thanh (Bar Chart)
   Widget _buildBarChartCard(
     BuildContext context, {
     required String title,
@@ -391,10 +462,10 @@ class _ReportsTabState extends State<ReportsTab> {
                 BarChartData(
                   alignment: BarChartAlignment.spaceAround,
                   barGroups: summaries.asMap().entries.map((entry) {
-                    int index = entry.key;
+                    // int index = entry.key; // Unused
                     DailySummary summary = entry.value;
                     return BarChartGroupData(
-                      x: index,
+                      x: entry.key,
                       barRods: [
                         BarChartRodData(
                           toY: getValue(summary),
