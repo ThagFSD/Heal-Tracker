@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'language_controller.dart'; // Import LanguageController
 
 class AIController extends GetxController {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -18,6 +19,11 @@ class AIController extends GetxController {
   // --- AI RESULTS ---
   var bmiValue = 0.0.obs;
   var bmiCategory = "".obs;
+  var weeklyReportTitle = "".obs; // New: Title for the weekly report section
+  var heartRateAssessment = "".obs; // New: e.g., "180 (high)"
+  var spO2Assessment = "".obs; // New: e.g., "100% (normal)"
+  var stepsAssessment = "".obs;
+  var caloriesAssessment = "".obs;
   var suggestions = <String>[].obs;
   var warnings = <String>[].obs;
   var solutions = <String>[].obs;
@@ -25,7 +31,7 @@ class AIController extends GetxController {
   // --- API CONFIG ---
   // [IMPORTANT] Error 403 usually means this key is invalid or missing.
   // Ensure you have a valid API key here or it is injected correctly.
-  final String apiKey = "AIzaSyDRZn3MDsDSECcg1KJkTLxRjJTQmYQWsq0"; 
+  final String apiKey = ""; 
 
   // ==========================================================
   // MAIN FUNCTION: ANALYZE HEALTH
@@ -82,9 +88,14 @@ class AIController extends GetxController {
         avgCal = (hData['avgCalories'] as num).toInt();
       }
 
-      // 3. Prepare Prompt
+      // 3. Get Current Language
+      final LanguageController langController = Get.find();
+      String languageCode = langController.currentLanguage.value;
+      String languageName = languageCode == 'vi' ? 'Vietnamese' : 'English';
+
+      // 4. Prepare Prompt
       final prompt = """
-      Act as a professional health coach. Analyze the following user data:
+      Act as a professional health coach. Analyze the following user data based on their 7-day average:
       - Age: $age
       - Gender: $gender
       - Height: $height cm
@@ -94,10 +105,17 @@ class AIController extends GetxController {
       - Past 7 Days Avg Steps: $avgSteps steps/day
       - Past 7 Days Avg Calories Burned: $avgCal kcal/day
 
+      Please provide the response in **$languageName**.
+
       Provide a response in strict JSON format (no markdown code blocks) with the following keys:
       {
         "bmi": <calculated_bmi_number>,
-        "bmi_category": "<Underweight/Normal/Overweight/Obese>",
+        "bmi_category": "<Underweight/Normal/Overweight/Obese (translated)>",
+        "weekly_report_title": "<Title like 'Weekly Health Report' translated>",
+        "heart_rate_assessment": "<Value> (Assessment e.g. High/Normal/Low translated)",
+        "spo2_assessment": "<Value>% (Assessment translated)",
+        "steps_assessment": "<Value> (Assessment translated)",
+        "calories_assessment": "<Value> kcal (Assessment translated)",
         "suggestions": ["<short_suggestion_1>", "<short_suggestion_2>", ...],
         "warnings": ["<warning_if_any_otherwise_empty>", ...],
         "solutions": ["<solution_1>", "<solution_2>", ...]
@@ -105,12 +123,18 @@ class AIController extends GetxController {
       If stats are 0, assume insufficient data but give general advice based on BMI/Age.
       """;
 
-      // 4. Call Gemini API
+      // 5. Call Gemini API
       final responseJson = await _callGeminiWithRetry(prompt);
       
-      // 5. Parse Results
+      // 6. Parse Results
       bmiValue.value = (responseJson['bmi'] as num).toDouble();
       bmiCategory.value = responseJson['bmi_category'] ?? "Unknown";
+      weeklyReportTitle.value = responseJson['weekly_report_title'] ?? "Weekly Report";
+      heartRateAssessment.value = responseJson['heart_rate_assessment'] ?? "$avgHR bpm";
+      spO2Assessment.value = responseJson['spo2_assessment'] ?? "$avgSpO2 %";
+      stepsAssessment.value = responseJson['steps_assessment'] ?? "$avgSteps";
+      caloriesAssessment.value = responseJson['calories_assessment'] ?? "$avgCal kcal";
+      
       suggestions.assignAll(List<String>.from(responseJson['suggestions'] ?? []));
       warnings.assignAll(List<String>.from(responseJson['warnings'] ?? []));
       solutions.assignAll(List<String>.from(responseJson['solutions'] ?? []));
@@ -131,7 +155,6 @@ class AIController extends GetxController {
   Future<Map<String, dynamic>> _callGeminiWithRetry(String prompt) async {
     int retries = 0;
     const maxRetries = 5;
-    // Define backoff delays in seconds: 1s, 2s, 4s, 8s, 16s
     const backoffDelays = [1, 2, 4, 8, 16];
     
     while (retries < maxRetries) {
@@ -165,7 +188,6 @@ class AIController extends GetxController {
         throw "API Error: ${response.statusCode}";
 
       } catch (e) {
-        // If it's a 403, don't retry, it won't fix itself immediately
         if (e.toString().contains("403")) rethrow;
 
         retries++;

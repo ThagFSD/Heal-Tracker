@@ -47,7 +47,6 @@ class _DashboardTabState extends State<DashboardTab> {
     );
   }
 
-  // [FIX] Removed Obx() here to solve "Improper use of GetX"
   Widget _buildHeader() {
     final name = FirebaseAuth.instance.currentUser?.displayName ?? "User";
     return Column(
@@ -61,7 +60,6 @@ class _DashboardTabState extends State<DashboardTab> {
     );
   }
 
-  // [FIX] Adjusted Aspect Ratio to prevent overflow on smaller screens
   Widget _buildQuickStatsGrid() {
     return Obx(() => GridView.count(
           crossAxisCount: 2,
@@ -69,7 +67,7 @@ class _DashboardTabState extends State<DashboardTab> {
           mainAxisSpacing: 16,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          childAspectRatio: 1.3, // Changed from 1.5 to 1.3 to give more vertical space
+          childAspectRatio: 1.3, 
           children: [
             _buildStatCard("Heart Rate", bleController.heartRate.value, "BPM", Icons.favorite, Colors.red),
             _buildStatCard("SpO2", bleController.spO2.value, "%", Icons.water_drop, Colors.blue),
@@ -95,7 +93,6 @@ class _DashboardTabState extends State<DashboardTab> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // [FIX] Wrapped text to prevent overflow if numbers get large
               FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
@@ -181,6 +178,7 @@ class _DashboardTabState extends State<DashboardTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // BMI Section
           Row(
             children: [
               Container(
@@ -190,9 +188,18 @@ class _DashboardTabState extends State<DashboardTab> {
                     style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
               ),
               const SizedBox(width: 10),
-              Text(aiController.bmiCategory.value, style: const TextStyle(fontWeight: FontWeight.w600)),
+              Expanded(child: Text(aiController.bmiCategory.value, style: const TextStyle(fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
             ],
           ),
+          const Divider(height: 24),
+
+          // NEW: Weekly Report Section
+          Text(aiController.weeklyReportTitle.value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor)),
+          const SizedBox(height: 8),
+          _buildReportRow(Icons.favorite, "Heart Rate", aiController.heartRateAssessment.value, Colors.red),
+          _buildReportRow(Icons.water_drop, "SpO2", aiController.spO2Assessment.value, Colors.blue),
+          _buildReportRow(Icons.directions_walk, "Steps", aiController.stepsAssessment.value, Colors.orange),
+          _buildReportRow(Icons.local_fire_department, "Calories", aiController.caloriesAssessment.value, Colors.deepOrange),
           const Divider(height: 24),
 
           if (aiController.warnings.isNotEmpty) ...[
@@ -201,6 +208,7 @@ class _DashboardTabState extends State<DashboardTab> {
             ...aiController.warnings.map((w) => Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Icon(Icons.warning_amber, size: 16, color: Colors.red),
                   const SizedBox(width: 8),
@@ -245,6 +253,20 @@ class _DashboardTabState extends State<DashboardTab> {
             alignment: Alignment.centerRight,
             child: Text("Powered by Gemini AI", style: TextStyle(fontSize: 10, color: Colors.grey[400], fontStyle: FontStyle.italic)),
           )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReportRow(IconData icon, String label, String value, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 8),
+          Text("$label: ", style: const TextStyle(fontWeight: FontWeight.w500)),
+          Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.bold))),
         ],
       ),
     );
