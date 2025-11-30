@@ -1,0 +1,180 @@
+import 'dart:async';
+import 'dart:convert';
+import 'package:get/get.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
+
+class AIController extends GetxController {
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  // --- UI STATE ---
+  var isLoading = false.obs;
+  var hasResult = false.obs;
+  var lastAnalysisTime = Rxn<DateTime>();
+
+  // --- AI RESULTS ---
+  var bmiValue = 0.0.obs;
+  var bmiCategory = "".obs;
+  var suggestions = <String>[].obs;
+  var warnings = <String>[].obs;
+  var solutions = <String>[].obs;
+
+  // --- API CONFIG ---
+  // [IMPORTANT] Error 403 usually means this key is invalid or missing.
+  // Ensure you have a valid API key here or it is injected correctly.
+  final String apiKey = "AIzaSyDRZn3MDsDSECcg1KJkTLxRjJTQmYQWsq0"; 
+
+  // ==========================================================
+  // MAIN FUNCTION: ANALYZE HEALTH
+  // ==========================================================
+  Future<void> analyzeHealthData() async {
+    User? user = _auth.currentUser;
+    if (user == null) return;
+    
+    if (apiKey.isEmpty) {
+      Get.snackbar("AI Error", "API Key is missing. Please configure it.");
+      return;
+    }
+
+    isLoading.value = true;
+    hasResult.value = false;
+
+    try {
+      // 1. Fetch User Profile
+      final userDoc = await _db.collection('users').doc(user.uid).get();
+      if (!userDoc.exists) throw "User profile not found";
+      final userData = userDoc.data()!;
+
+      // Calculate Age
+      int age = 25; // Default
+      if (userData['birthday'] != null) {
+        DateTime birth = (userData['birthday'] as Timestamp).toDate();
+        age = DateTime.now().year - birth.year;
+      }
+      
+      // Get physical stats
+      int height = userData['height'] ?? 170;
+      int weight = userData['weight'] ?? 65;
+      String gender = userData['gender'] ?? 'unknown';
+
+      // 2. Fetch Latest 7-Day Avg Health Data
+      final healthSnapshot = await _db
+          .collection('users')
+          .doc(user.uid)
+          .collection('health_data_avg')
+          .orderBy('calculatedAt', descending: true)
+          .limit(1)
+          .get();
+
+      double avgHR = 0;
+      double avgSpO2 = 0;
+      int avgSteps = 0;
+      int avgCal = 0;
+
+      if (healthSnapshot.docs.isNotEmpty) {
+        final hData = healthSnapshot.docs.first.data();
+        avgHR = (hData['avgHeartRate'] as num).toDouble();
+        avgSpO2 = (hData['avgSpO2'] as num).toDouble();
+        avgSteps = (hData['avgSteps'] as num).toInt();
+        avgCal = (hData['avgCalories'] as num).toInt();
+      }
+
+      // 3. Prepare Prompt
+      final prompt = """
+      Act as a professional health coach. Analyze the following user data:
+      - Age: $age
+      - Gender: $gender
+      - Height: $height cm
+      - Weight: $weight kg
+      - Past 7 Days Avg Heart Rate: $avgHR bpm
+      - Past 7 Days Avg SpO2: $avgSpO2 %
+      - Past 7 Days Avg Steps: $avgSteps steps/day
+      - Past 7 Days Avg Calories Burned: $avgCal kcal/day
+
+      Provide a response in strict JSON format (no markdown code blocks) with the following keys:
+      {
+        "bmi": <calculated_bmi_number>,
+        "bmi_category": "<Underweight/Normal/Overweight/Obese>",
+        "suggestions": ["<short_suggestion_1>", "<short_suggestion_2>", ...],
+        "warnings": ["<warning_if_any_otherwise_empty>", ...],
+        "solutions": ["<solution_1>", "<solution_2>", ...]
+      }
+      If stats are 0, assume insufficient data but give general advice based on BMI/Age.
+      """;
+
+      // 4. Call Gemini API
+      final responseJson = await _callGeminiWithRetry(prompt);
+      
+      // 5. Parse Results
+      bmiValue.value = (responseJson['bmi'] as num).toDouble();
+      bmiCategory.value = responseJson['bmi_category'] ?? "Unknown";
+      suggestions.assignAll(List<String>.from(responseJson['suggestions'] ?? []));
+      warnings.assignAll(List<String>.from(responseJson['warnings'] ?? []));
+      solutions.assignAll(List<String>.from(responseJson['solutions'] ?? []));
+
+      hasResult.value = true;
+      lastAnalysisTime.value = DateTime.now();
+
+    } catch (e) {
+      Get.snackbar("AI Error", "Could not analyze data: $e");
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // ==========================================================
+  // HELPER: API CALL WITH BACKOFF
+  // ==========================================================
+  Future<Map<String, dynamic>> _callGeminiWithRetry(String prompt) async {
+    int retries = 0;
+    const maxRetries = 5;
+    // Define backoff delays in seconds: 1s, 2s, 4s, 8s, 16s
+    const backoffDelays = [1, 2, 4, 8, 16];
+    
+    while (retries < maxRetries) {
+      try {
+        final url = Uri.parse(
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=$apiKey');
+        
+        final response = await http.post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            "contents": [{
+              "parts": [{"text": prompt}]
+            }],
+            "generationConfig": {"responseMimeType": "application/json"}
+          }),
+        );
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final text = data['candidates']?[0]['content']?['parts']?[0]['text'];
+          if (text != null) {
+            return jsonDecode(text);
+          }
+        }
+        
+        if (response.statusCode == 403) {
+           throw "API Key Invalid or Quota Exceeded (403)";
+        }
+        
+        throw "API Error: ${response.statusCode}";
+
+      } catch (e) {
+        // If it's a 403, don't retry, it won't fix itself immediately
+        if (e.toString().contains("403")) rethrow;
+
+        retries++;
+        if (retries == maxRetries) rethrow;
+        
+        int delaySeconds = backoffDelays[retries - 1];
+        await Future.delayed(Duration(seconds: delaySeconds)); 
+      }
+    }
+    throw "Failed to connect to AI Service";
+  }
+}
