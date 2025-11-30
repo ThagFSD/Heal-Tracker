@@ -6,20 +6,19 @@ class LanguageController extends GetxController {
   final _box = GetStorage();
   final _key = 'languageCode'; // 'en' or 'vi'
   
-  // Biến .obs để Dropdown có thể theo dõi
-  // Mặc định là Tiếng Việt ('vi')
+  // Observable variable to track current language
   final currentLanguage = 'vi'.obs; 
 
   @override
   void onInit() {
     super.onInit();
     currentLanguage.value = _loadLanguage();
+    // Ensure GetX knows the initial locale
+    Get.updateLocale(getInitialLocale());
   }
 
-  // Hàm private để đọc code ngôn ngữ
   String _loadLanguage() => _box.read(_key) ?? 'vi';
 
-  // Lấy Locale ban đầu cho GetMaterialApp
   Locale getInitialLocale() {
     String langCode = _loadLanguage();
     return langCode == 'vi' 
@@ -27,18 +26,18 @@ class LanguageController extends GetxController {
         : const Locale('en', 'US');
   }
 
-  // Hàm chuyển đổi ngôn ngữ
   void switchLanguage(String languageCode) {
-    if (languageCode == currentLanguage.value) return; // Không đổi nếu giống
+    if (languageCode == currentLanguage.value) return;
 
-    // 1. Lưu code mới
+    // 1. Update Storage & Observable
     _box.write(_key, languageCode);
     currentLanguage.value = languageCode;
 
-    // 2. Cập nhật GetX Locale
+    // 2. Update App Locale
     var locale = languageCode == 'vi'
         ? const Locale('vi', 'VN')
         : const Locale('en', 'US');
-    Get.updateLocale(locale);
+    
+    Get.updateLocale(locale); // This triggers a full app rebuild
   }
 }

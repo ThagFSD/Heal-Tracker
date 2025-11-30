@@ -1,5 +1,3 @@
-// lib/localization/app_translations.dart
-
 import 'package:get/get.dart';
 
 class AppTranslations extends Translations {
@@ -9,6 +7,27 @@ class AppTranslations extends Translations {
         'en_US': {
           // App
           'app_title': 'Heal Tracker',
+          'app_subtitle': 'Monitor your health smartly',
+          // Login / Sign Up
+          'create_account': 'Create Account',
+          'welcome_back': 'Welcome Back',
+          'signup_subtitle': 'Sign up to start your journey',
+          'login_subtitle': 'Login to continue tracking',
+          'full_name': 'Full Name',
+          'name_required': 'Name is required',
+          'email_address': 'Email Address',
+          'invalid_email': 'Invalid Email',
+          'password': 'Password',
+          'password_min_length': 'Min 6 chars required',
+          'forgot_password_feature': 'Forgot Password feature coming soon!',
+          'forgot_password': 'Forgot Password?',
+          'btn_signup': 'SIGN UP',
+          'btn_login': 'LOGIN',
+          'or_continue_with': 'OR CONTINUE WITH',
+          'already_have_account': 'Already have an account?',
+          'dont_have_account': "Don't have an account?",
+          'login_action': 'Login',
+          'signup_action': 'Sign Up',
           // Drawer Menu
           'settings_info': 'Profile Settings',
           'switch_theme_light': 'Switch to Light Mode',
@@ -69,14 +88,49 @@ class AppTranslations extends Translations {
           // phonenumber
           'relative_phone': "Relative's Phone", 
           'phone_hint': 'Example: 912345678',
-          'phone_validation_required': 'Phone number is required', // <-- MỚI
-          'phone_validation_invalid': 'Invalid 9-digit number', // <-- MỚI
+          'phone_validation_required': 'Phone number is required',
+          'phone_validation_invalid': 'Invalid 9-digit number',
+          // AI Coach
+          'ai_coach_title': 'AI Health Coach ✨',
+          'ask_ai': 'Ask AI Coach',
+          'analyzing': 'Analyzing your health data...',
+          'ai_intro': 'Get personalized health insights based on your 7-day history.',
+          'warnings': '⚠️ Warnings',
+          'suggestions': '💡 Suggestions',
+          'solutions': '✅ Solutions',
+          'powered_by': 'Powered by Gemini AI',
+          // Warning System
+          'warning_title': '⚠️ HEALTH WARNING!',
+          'warning_high_hr_low_spo2': 'Heart rate TOO HIGH (@hr BPM) and SpO2 LOW (@spo2%)! Stop activity immediately.',
+          'warning_high_hr': 'Heart rate exceeds safe limit (@hr BPM). Please rest.',
+          'warning_low_spo2': 'Blood oxygen level is low (@spo2%). Focus on breathing.',
         },
         
         // TIẾNG VIỆT
         'vi_VN': {
           // App
           'app_title': 'Heal Tracker',
+          'app_subtitle': 'Theo dõi sức khỏe thông minh',
+          // Login / Sign Up
+          'create_account': 'Tạo Tài Khoản',
+          'welcome_back': 'Chào Mừng Trở Lại',
+          'signup_subtitle': 'Đăng ký để bắt đầu hành trình của bạn',
+          'login_subtitle': 'Đăng nhập để tiếp tục theo dõi',
+          'full_name': 'Họ và Tên',
+          'name_required': 'Vui lòng nhập tên',
+          'email_address': 'Địa chỉ Email',
+          'invalid_email': 'Email không hợp lệ',
+          'password': 'Mật khẩu',
+          'password_min_length': 'Tối thiểu 6 ký tự',
+          'forgot_password_feature': 'Tính năng Quên mật khẩu sắp ra mắt!',
+          'forgot_password': 'Quên mật khẩu?',
+          'btn_signup': 'ĐĂNG KÝ',
+          'btn_login': 'ĐĂNG NHẬP',
+          'or_continue_with': 'HOẶC TIẾP TỤC VỚI',
+          'already_have_account': 'Đã có tài khoản?',
+          'dont_have_account': 'Chưa có tài khoản?',
+          'login_action': 'Đăng nhập',
+          'signup_action': 'Đăng ký',
           // Drawer Menu
           'settings_info': 'Cài đặt Thông tin',
           'switch_theme_light': 'Chuyển sang Sáng',
@@ -98,7 +152,7 @@ class AppTranslations extends Translations {
           'lang_en': 'Tiếng Anh',
           'lang_vi': 'Tiếng Việt',
           // Bottom Tab Bar
-          'tab_dashboard': 'Dashboard',
+          'tab_dashboard': 'Trang chủ',
           'tab_charts': 'Biểu đồ',
           'tab_reports': 'Báo cáo',
           // Connect Screen
@@ -138,7 +192,21 @@ class AppTranslations extends Translations {
           'relative_phone': 'SĐT Người thân', 
           'phone_hint': 'Ví dụ: 912345678', 
           'phone_validation_required': 'Vui lòng nhập số điện thoại', 
-          'phone_validation_invalid': 'Số điện thoại 9 số không hợp lệ', 
+          'phone_validation_invalid': 'Số điện thoại 9 số không hợp lệ',
+          // AI Coach
+          'ai_coach_title': 'Trợ lý Sức khỏe AI ✨',
+          'ask_ai': 'Hỏi Trợ lý AI',
+          'analyzing': 'Đang phân tích dữ liệu sức khỏe...',
+          'ai_intro': 'Nhận thông tin chi tiết về sức khỏe dựa trên lịch sử 7 ngày của bạn.',
+          'warnings': '⚠️ Cảnh báo',
+          'suggestions': '💡 Gợi ý',
+          'solutions': '✅ Giải pháp',
+          'powered_by': 'Cung cấp bởi Gemini AI',
+          // Warning System
+          'warning_title': '⚠️ CẢNH BÁO SỨC KHỎE!',
+          'warning_high_hr_low_spo2': 'Nhịp tim QUÁ CAO (@hr BPM) và SpO2 THẤP (@spo2%)! Hãy dừng hoạt động ngay.',
+          'warning_high_hr': 'Nhịp tim vượt ngưỡng an toàn (@hr BPM). Vui lòng nghỉ ngơi.',
+          'warning_low_spo2': 'Nồng độ oxy trong máu thấp (@spo2%). Cần chú ý hít thở.',
         }
       };
 }

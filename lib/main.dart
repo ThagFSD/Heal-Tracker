@@ -1,11 +1,12 @@
 // lib/main.dart
-import 'package:firebase_core/firebase_core.dart'; // <-- SỬA: Dùng package: (dấu hai chấm)
+import 'package:firebase_core/firebase_core.dart'; 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:intl/date_symbol_data_local.dart'; // Import this
 
-// Import TẤT CẢ các Controllers
+// Import Controllers
 import 'controllers/auth_controller.dart';
 import 'controllers/profile_controller.dart';
 import 'controllers/ble_controller.dart';
@@ -15,9 +16,8 @@ import 'localization/app_translations.dart';
 import 'firebase_options.dart'; 
 import 'controllers/workout_controller.dart'; 
 
-
-// Import TẤT CẢ các Màn hình
-import 'screens/splash_screen.dart'; // <-- IMPORT MỚI
+// Import Screens
+import 'screens/splash_screen.dart'; 
 import 'screens/onboarding_screen.dart';
 import 'screens/connect_screen.dart';
 import 'screens/home_screen.dart';
@@ -27,22 +27,19 @@ import 'screens/tabs/workout_tab.dart';
 
 
 void main() async {
-  // ===========================================
-  // KHỞI TẠO ĐÚNG THỨ TỰ
-  // ===========================================
   WidgetsFlutterBinding.ensureInitialized();
   await GetStorage.init();
   
-  // 1. Khởi tạo Firebase TRƯỚC
+  // Initialize Date Formatting for Vietnamese and others
+  await initializeDateFormatting(); 
+
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // 2. Khởi tạo các Controllers SAU
-  // (Thứ tự này quan trọng)
   Get.put(LanguageController()); 
   Get.put(ThemeController()); 
-  Get.put(AuthController()); // <-- AuthController phải được 'put'
+  Get.put(AuthController()); 
   Get.put(BLEController());
   Get.put(ProfileController()); 
   Get.put(WorkoutController());
@@ -66,7 +63,6 @@ class MyApp extends StatelessWidget {
       locale: langController.getInitialLocale(), 
       fallbackLocale: const Locale('en', 'US'), 
       
-      // (Theme Sáng: Giữ nguyên)
       theme: ThemeData(
         primarySwatch: Colors.orange,
         brightness: Brightness.light,
@@ -87,7 +83,7 @@ class MyApp extends StatelessWidget {
           textTheme: ButtonTextTheme.primary
         ),
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-          type: BottomNavigationBarType.fixed, // Giữ màu cam
+          type: BottomNavigationBarType.fixed, 
           selectedItemColor: Colors.orange,
           unselectedItemColor: Colors.grey, 
         ),
@@ -108,7 +104,6 @@ class MyApp extends StatelessWidget {
         ),
       ),
       
-      // (Theme Tối: Giữ nguyên)
       darkTheme: ThemeData(
         primarySwatch: Colors.orange,
         brightness: Brightness.dark,
@@ -119,7 +114,7 @@ class MyApp extends StatelessWidget {
           foregroundColor: Colors.white,
         ),
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-          type: BottomNavigationBarType.fixed, // Giữ màu cam
+          type: BottomNavigationBarType.fixed, 
           selectedItemColor: Colors.orange, 
           unselectedItemColor: Colors.grey, 
         ),

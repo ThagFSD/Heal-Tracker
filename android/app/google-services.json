@@ -31,10 +31,10 @@
               "client_type": 3
             },
             {
-              "client_id": "272804287975-uj0b9sv1nqvrj319at5cnm07kddqh91l.apps.googleusercontent.com",
+              "client_id": "272804287975-flgmoc0ohcmamot7sl5vtpa096die7d2.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.senurah.bleEsp32"
+                "bundle_id": "com.example.healtracker"
               }
             }
           ]
@@ -49,6 +49,14 @@
         }
       },
       "oauth_client": [
+        {
+          "client_id": "272804287975-obnl5a50d2e46rs36pu4eph47trs9hea.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.senurah.ble_esp32",
+            "certificate_hash": "7f9b87d7b713f91968d2dfe693410a761323ab99"
+          }
+        },
         {
           "client_id": "272804287975-tund1uo5961j9jm1ig2c8tjoa2ale3fn.apps.googleusercontent.com",
           "client_type": 3
@@ -67,10 +75,10 @@
               "client_type": 3
             },
             {
-              "client_id": "272804287975-uj0b9sv1nqvrj319at5cnm07kddqh91l.apps.googleusercontent.com",
+              "client_id": "272804287975-flgmoc0ohcmamot7sl5vtpa096die7d2.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.senurah.bleEsp32"
+                "bundle_id": "com.example.healtracker"
               }
             }
           ]
