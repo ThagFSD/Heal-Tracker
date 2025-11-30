@@ -31,7 +31,7 @@ class AIController extends GetxController {
   // --- API CONFIG ---
   // [IMPORTANT] Error 403 usually means this key is invalid or missing.
   // Ensure you have a valid API key here or it is injected correctly.
-  final String apiKey = ""; 
+  final String apiKey = "AIzaSyDRZn3MDsDSECcg1KJkTLxRjJTQmYQWsq0"; 
 
   // ==========================================================
   // MAIN FUNCTION: ANALYZE HEALTH

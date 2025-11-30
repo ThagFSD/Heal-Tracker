@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../controllers/ble_controller.dart';
 import '../../controllers/profile_controller.dart';
 import '../../controllers/ai_controller.dart';
+import '../../controllers/language_controller.dart';
 
 class DashboardTab extends StatefulWidget {
   const DashboardTab({super.key});
@@ -18,6 +19,10 @@ class _DashboardTabState extends State<DashboardTab> {
   
   final BLEController bleController = Get.find();
   final ProfileController profileController = Get.find();
+  final LanguageController langController = Get.find();
+  
+  // State variable to control log visibility
+  bool _showLog = false;
 
   @override
   void initState() {
@@ -36,11 +41,32 @@ class _DashboardTabState extends State<DashboardTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildHeader(),
+          _buildHeader(), 
           const SizedBox(height: 20),
-          _buildQuickStatsGrid(),
+          _buildQuickStatsGrid(), 
           const SizedBox(height: 24),
-          _buildAIAnalysisSection(context),
+          _buildAIAnalysisSection(context), 
+          const SizedBox(height: 24),
+          
+          // [NEW] Log Section Button
+          Center(
+            child: TextButton.icon(
+              onPressed: () {
+                setState(() {
+                  _showLog = !_showLog;
+                });
+              },
+              icon: Icon(_showLog ? Icons.keyboard_arrow_up : Icons.terminal, color: Colors.grey),
+              label: Text(_showLog ? 'Hide Data Log' : 'Show Data Log', style: const TextStyle(color: Colors.grey)),
+            ),
+          ),
+          
+          // [NEW] Log Section (Visible only if _showLog is true)
+          if (_showLog) ...[
+            const SizedBox(height: 10),
+            _buildDataLogCard(context),
+          ],
+
           const SizedBox(height: 100), 
         ],
       ),
@@ -49,13 +75,20 @@ class _DashboardTabState extends State<DashboardTab> {
 
   Widget _buildHeader() {
     final name = FirebaseAuth.instance.currentUser?.displayName ?? "User";
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("Hello, $name 👋",
+        Text("Hello, $name 👋", 
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-        Text(DateFormat('EEEE, d MMMM').format(DateTime.now()),
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey)),
+        Obx(() {
+          var currentLang = langController.currentLanguage.value; 
+          String localeCode = currentLang == 'vi' ? 'vi_VN' : 'en_US';
+          return Text(
+            DateFormat('EEEE, d MMMM', localeCode).format(DateTime.now()),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+          );
+        }),
       ],
     );
   }
@@ -69,10 +102,10 @@ class _DashboardTabState extends State<DashboardTab> {
           physics: const NeverScrollableScrollPhysics(),
           childAspectRatio: 1.3, 
           children: [
-            _buildStatCard("Heart Rate", bleController.heartRate.value, "BPM", Icons.favorite, Colors.red),
-            _buildStatCard("SpO2", bleController.spO2.value, "%", Icons.water_drop, Colors.blue),
-            _buildStatCard("Steps", bleController.steps.value, "steps", Icons.directions_walk, Colors.orange),
-            _buildStatCard("Calories", bleController.calories.value, "kcal", Icons.local_fire_department, Colors.deepOrange),
+            _buildStatCard('heart_rate'.tr, bleController.heartRate.value, "BPM", Icons.favorite, Colors.red),
+            _buildStatCard('spo2'.tr, bleController.spO2.value, "%", Icons.water_drop, Colors.blue),
+            _buildStatCard('steps'.tr, bleController.steps.value, "steps", Icons.directions_walk, Colors.orange),
+            _buildStatCard('calories'.tr, bleController.calories.value, "kcal", Icons.local_fire_department, Colors.deepOrange),
           ],
         ));
   }
@@ -116,7 +149,7 @@ class _DashboardTabState extends State<DashboardTab> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text("AI Health Coach ✨",
+            Text('ai_coach_title'.tr,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
             Obx(() => aiController.isLoading.value
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
@@ -133,7 +166,7 @@ class _DashboardTabState extends State<DashboardTab> {
             return _buildAIPlaceholder();
           }
           if (aiController.isLoading.value && !aiController.hasResult.value) {
-             return const Center(child: Padding(padding: EdgeInsets.all(20), child: Text("Analyzing your health data...")));
+             return Center(child: Padding(padding: const EdgeInsets.all(20), child: Text('analyzing'.tr)));
           }
           return _buildAIResultCard();
         }),
@@ -154,12 +187,12 @@ class _DashboardTabState extends State<DashboardTab> {
         children: [
           const Icon(Icons.smart_toy_outlined, size: 40, color: Colors.blue),
           const SizedBox(height: 10),
-          const Text("Get personalized health insights based on your 7-day history.", textAlign: TextAlign.center),
+          Text('ai_intro'.tr, textAlign: TextAlign.center),
           const SizedBox(height: 10),
           ElevatedButton(
             onPressed: () => aiController.analyzeHealthData(),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
-            child: const Text("Ask AI Coach"),
+            child: Text('ask_ai'.tr),
           )
         ],
       ),
@@ -178,7 +211,6 @@ class _DashboardTabState extends State<DashboardTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // BMI Section
           Row(
             children: [
               Container(
@@ -193,22 +225,20 @@ class _DashboardTabState extends State<DashboardTab> {
           ),
           const Divider(height: 24),
 
-          // NEW: Weekly Report Section
           Text(aiController.weeklyReportTitle.value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor)),
           const SizedBox(height: 8),
-          _buildReportRow(Icons.favorite, "Heart Rate", aiController.heartRateAssessment.value, Colors.red),
-          _buildReportRow(Icons.water_drop, "SpO2", aiController.spO2Assessment.value, Colors.blue),
-          _buildReportRow(Icons.directions_walk, "Steps", aiController.stepsAssessment.value, Colors.orange),
-          _buildReportRow(Icons.local_fire_department, "Calories", aiController.caloriesAssessment.value, Colors.deepOrange),
+          _buildReportRow(Icons.favorite, 'heart_rate'.tr, aiController.heartRateAssessment.value, Colors.red),
+          _buildReportRow(Icons.water_drop, 'spo2'.tr, aiController.spO2Assessment.value, Colors.blue),
+          _buildReportRow(Icons.directions_walk, 'steps'.tr, aiController.stepsAssessment.value, Colors.orange),
+          _buildReportRow(Icons.local_fire_department, 'calories'.tr, aiController.caloriesAssessment.value, Colors.deepOrange),
           const Divider(height: 24),
 
           if (aiController.warnings.isNotEmpty) ...[
-            const Text("⚠️ Warnings", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+            Text('warnings'.tr, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
             const SizedBox(height: 8),
             ...aiController.warnings.map((w) => Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Icon(Icons.warning_amber, size: 16, color: Colors.red),
                   const SizedBox(width: 8),
@@ -219,7 +249,7 @@ class _DashboardTabState extends State<DashboardTab> {
             const SizedBox(height: 16),
           ],
 
-          const Text("💡 Suggestions", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+          Text('suggestions'.tr, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
           const SizedBox(height: 8),
           ...aiController.suggestions.map((s) => Padding(
             padding: const EdgeInsets.only(bottom: 4),
@@ -234,7 +264,7 @@ class _DashboardTabState extends State<DashboardTab> {
           )),
           const SizedBox(height: 16),
 
-          const Text("✅ Solutions", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+          Text('solutions'.tr, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
           const SizedBox(height: 8),
           ...aiController.solutions.map((s) => Padding(
             padding: const EdgeInsets.only(bottom: 4),
@@ -251,7 +281,7 @@ class _DashboardTabState extends State<DashboardTab> {
           const SizedBox(height: 10),
           Align(
             alignment: Alignment.centerRight,
-            child: Text("Powered by Gemini AI", style: TextStyle(fontSize: 10, color: Colors.grey[400], fontStyle: FontStyle.italic)),
+            child: Text('powered_by'.tr, style: TextStyle(fontSize: 10, color: Colors.grey[400], fontStyle: FontStyle.italic)),
           )
         ],
       ),
@@ -267,6 +297,69 @@ class _DashboardTabState extends State<DashboardTab> {
           const SizedBox(width: 8),
           Text("$label: ", style: const TextStyle(fontWeight: FontWeight.w500)),
           Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.bold))),
+        ],
+      ),
+    );
+  }
+
+  // [NEW] Widget for Data Log (from previous version, now restored)
+  Widget _buildDataLogCard(BuildContext context) {
+    Color cardColor = Theme.of(context).cardColor;
+    Color textColor = Theme.of(context).textTheme.bodySmall?.color ?? Colors.grey;
+    Color titleColor = Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black;
+
+    return Container(
+      width: double.infinity,
+      height: 200, 
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'data_log'.tr,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: titleColor,
+            ),
+          ),
+          const Divider(),
+          Expanded(
+            child: Obx(() {
+              if (bleController.rawDataLog.isEmpty) {
+                return Center(
+                  child: Text(
+                    'log_waiting'.tr,
+                    style: TextStyle(color: textColor.withOpacity(0.7)),
+                  ),
+                );
+              }
+              return ListView.builder(
+                itemCount: bleController.rawDataLog.length,
+                itemBuilder: (context, index) {
+                  return Text(
+                    bleController.rawDataLog[index],
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 12,
+                      fontFamily: 'monospace',
+                    ),
+                  );
+                },
+              );
+            }),
+          ),
         ],
       ),
     );

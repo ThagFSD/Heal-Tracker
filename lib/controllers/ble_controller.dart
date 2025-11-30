@@ -1,5 +1,3 @@
-// lib/controllers/ble_controller.dart
-
 import 'dart:async'; 
 import 'dart:convert';
 import 'dart:math';
@@ -42,15 +40,19 @@ class BLEController extends GetxController {
   DateTime? _lastSaveTime; 
   String _currentDayId = ""; 
   
-  // Today's Raw Accumulators (For 'health_data')
+  // Today's Raw Accumulators (Hidden)
   int _dailyCount = 0;
   double _dailyHrSum = 0;
   double _dailySpO2Sum = 0;
   int _dailyMaxSteps = 0;
   int _dailyMaxCalories = 0;
 
-  // Cached History for Calculation
-  List<HealthDataPoint> _cachedHistoryForAvg = [];
+  // Cached "Past 7 Days Avg"
+  double _cachedPastAvgHR = 0;
+  double _cachedPastAvgSpO2 = 0;
+  int _cachedPastAvgSteps = 0;
+  int _cachedPastAvgCal = 0;
+  bool _isPastAvgCalculated = false;
   
   // --- HISTORY & DEMO ---
   var healthDataHistory = <HealthDataPoint>[].obs; 
@@ -78,32 +80,32 @@ class BLEController extends GetxController {
     _currentDayId = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
     try {
+      // Safe way to listen for auth changes without error if controller not ready immediately
+      // Using Get.isRegistered check inside ever or delay might help, 
+      // but putting AuthController first in main ensures it is ready.
       final authController = Get.find<AuthController>();
       ever(authController.firebaseUser, (User? user) {
         if (user != null) {
-          _initializeData();
+          _initializeDailyData();
         }
       });
       if (authController.firebaseUser.value != null) {
-        _initializeData();
+        _initializeDailyData();
       }
     } catch (e) {
       Get.log("Warning: AuthController not ready: $e");
     }
   }
 
-  Future<void> _initializeData() async {
-    // 1. Load Today's Raw Progress (to continue counting)
+  Future<void> _initializeDailyData() async {
+    await fetch7DayHistory();           
     await _loadTodayStatsFromFirestore(); 
-    // 2. Fetch History (so we can calculate the 7-day avg)
-    await _fetchRawHistoryForCalculation();
-    // 3. Calculate & Save the Average immediately on startup
-    await _calculateAndSavePast7DayAvg();
+    await _calculatePast7DayAverage();    
   }
 
   @override
   void onClose() {
-    _forceUpdate(); 
+    _forceSave(); 
     _demoTimer?.cancel();
     _dataSubscription?.cancel();
     _connectionStateSubscription?.cancel();
@@ -154,7 +156,7 @@ class BLEController extends GetxController {
       _connectionStateSubscription?.cancel(); 
       _connectionStateSubscription = device.connectionState.listen((state) {
         if (state == BluetoothConnectionState.disconnected) {
-          _forceUpdate();
+          _forceSave();
           disconnectDevice();
         }
       });
@@ -166,7 +168,7 @@ class BLEController extends GetxController {
   }
 
   Future<void> disconnectDevice({bool isSigningOut = false}) async {
-    await _forceUpdate(); 
+    await _forceSave(); 
     _demoTimer?.cancel();
     _dataSubscription?.cancel();
     _connectionStateSubscription?.cancel();
@@ -226,7 +228,7 @@ class BLEController extends GetxController {
   }
 
   // ====================================================
-  // 4. DATA PARSING & THROTTLING
+  // 4. DATA PARSING
   // ====================================================
 
   void _parseHealthData(List<int> data) {
@@ -243,16 +245,14 @@ class BLEController extends GetxController {
         int valSteps = int.tryParse(values[2]) ?? 0;
         int valCal = int.tryParse(values[3]) ?? 0;
 
-        // UI Updates (Immediate)
+        // UI Updates
         spO2.value = values[0];
         heartRate.value = values[1];
         steps.value = values[2];
         calories.value = values[3];
 
         _analyzeHealthData(valHR, valSpO2);
-        
-        // Accumulate and Trigger Logic
-        _bufferAndThrottledUpdate(valHR, valSpO2, valSteps, valCal);
+        _bufferAndThrottledSave(valHR, valSpO2, valSteps, valCal);
       }
     } catch (e) {
       Get.log("Parse Error: $e");
@@ -291,47 +291,121 @@ class BLEController extends GetxController {
   }
 
   void _triggerWarning(bool hrDanger, bool spo2Danger, int hr, int spo2) {
+    // Cooldown
     if (_lastWarningTime != null && 
         DateTime.now().difference(_lastWarningTime!).inSeconds < 10) return;
     _lastWarningTime = DateTime.now();
 
-    String message = hrDanger && spo2Danger
-        ? "Nhịp tim QUÁ CAO ($hr BPM) và SpO2 THẤP ($spo2%)!"
-        : hrDanger ? "Nhịp tim vượt ngưỡng an toàn ($hr BPM)."
-        : "Nồng độ oxy thấp ($spo2%).";
+    String message = "";
 
-    Get.snackbar("⚠️ CẢNH BÁO SỨC KHỎE!", message,
-      backgroundColor: Colors.red, colorText: Colors.white,
+    // [FIX] Use .trParams for translated warning messages
+    if (hrDanger && spo2Danger) {
+      message = 'warning_high_hr_low_spo2'.trParams({
+        'hr': hr.toString(),
+        'spo2': spo2.toString()
+      });
+    } else if (hrDanger) {
+      message = 'warning_high_hr'.trParams({
+        'hr': hr.toString()
+      });
+    } else if (spo2Danger) {
+      message = 'warning_low_spo2'.trParams({
+        'spo2': spo2.toString()
+      });
+    }
+
+    Get.snackbar(
+      'warning_title'.tr, // "⚠️ HEALTH WARNING!" or translated
+      message,
+      backgroundColor: Colors.red, 
+      colorText: Colors.white,
       icon: const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 35),
       duration: const Duration(seconds: 5),
+      snackPosition: SnackPosition.TOP,
+      margin: const EdgeInsets.all(10),
+      isDismissible: false,
     );
   }
 
   // ====================================================
-  // 5. FIRESTORE LOGIC: 
-  //    - health_data: Stores Today's Raw Data
-  //    - health_data_avg: Stores Average of Past 7 Days
+  // 5. FIRESTORE LOGIC: PAST 7 DAYS ONLY
   // ====================================================
 
-  void _bufferAndThrottledUpdate(int hr, int spo2, int steps, int cal) {
+  // Calculate the average of (Today-7 to Today-1)
+  Future<void> _calculatePast7DayAverage() async {
+    User? user = _auth.currentUser;
+    if (user == null) return;
+    
+    final now = DateTime.now();
+    final startRange = now.subtract(const Duration(days: 8));
+    final endRange = now.subtract(const Duration(days: 0)); 
+
+    try {
+      final snapshot = await _db
+          .collection('users')
+          .doc(user.uid)
+          .collection('health_data')
+          .where('date', isGreaterThan: Timestamp.fromDate(startRange))
+          .where('date', isLessThan: Timestamp.fromDate(endRange))
+          .get();
+
+      double sumHR = 0; double sumSpO2 = 0;
+      int sumSteps = 0; int sumCal = 0;
+      int count = 0;
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        // Prefer internal raw data for accuracy
+        int dSteps = (data['_internal_today_max_steps'] ?? data['steps'] ?? 0);
+        int dCal = (data['_internal_today_max_cal'] ?? data['calories'] ?? 0);
+        double dHR = (data['avgHeartRate'] as num?)?.toDouble() ?? 0;
+        double dSpO2 = (data['avgSpO2'] as num?)?.toDouble() ?? 0;
+
+        if (dHR > 0) {
+          sumHR += dHR;
+          sumSpO2 += dSpO2;
+          sumSteps += dSteps;
+          sumCal += dCal;
+          count++;
+        }
+      }
+
+      if (count > 0) {
+        _cachedPastAvgHR = sumHR / count;
+        _cachedPastAvgSpO2 = sumSpO2 / count;
+        _cachedPastAvgSteps = (sumSteps / count).round();
+        _cachedPastAvgCal = (sumCal / count).round();
+      } else {
+        _cachedPastAvgHR = 0; _cachedPastAvgSpO2 = 0; 
+        _cachedPastAvgSteps = 0; _cachedPastAvgCal = 0;
+      }
+      
+      _isPastAvgCalculated = true;
+      Get.log("Calculated Past Avg (Count: $count): $_cachedPastAvgHR BPM, $_cachedPastAvgSteps Steps");
+
+    } catch (e) {
+      Get.log("Error calculating past avg: $e");
+    }
+  }
+
+  void _bufferAndThrottledSave(int hr, int spo2, int steps, int cal) {
     final now = DateTime.now();
     final String todayString = DateFormat('yyyy-MM-dd').format(now);
 
-    // Day Change Detection
+    // Day Change?
     if (todayString != _currentDayId) {
-      // Force Save Yesterday before switching
-      _saveDailyRawData(dateId: _currentDayId, customDate: DateTime.parse(_currentDayId));
+      // Force Save Yesterday
+      _saveToFirestore(dateId: _currentDayId, customDate: DateTime.parse(_currentDayId));
       
       // Reset for New Day
-      _dailyCount = 0; _dailyHrSum = 0; _dailySpO2Sum = 0; 
-      _dailyMaxSteps = 0; _dailyMaxCalories = 0;
+      _dailyCount = 0; _dailyHrSum = 0; _dailySpO2Sum = 0; _dailyMaxSteps = 0; _dailyMaxCalories = 0;
       _currentDayId = todayString;
       
-      // Recalculate Average (Window shifted)
-      _fetchRawHistoryForCalculation().then((_) => _calculateAndSavePast7DayAvg());
+      // Recalculate Average since the "Past 7 Days" window shifted
+      _calculatePast7DayAverage();
     }
 
-    // Accumulate TODAY'S raw data
+    // Accumulate Today's RAW
     if (hr > 0 && spo2 > 0) {
       _dailyHrSum += hr;
       _dailySpO2Sum += spo2;
@@ -340,119 +414,71 @@ class BLEController extends GetxController {
     if (steps > _dailyMaxSteps) _dailyMaxSteps = steps;
     if (cal > _dailyMaxCalories) _dailyMaxCalories = cal;
 
-    // Throttle: Every 1 Minute
+    // Throttle (1 minute)
     if (_lastSaveTime == null || now.difference(_lastSaveTime!).inSeconds >= 60) {
-      _lastSaveTime = now;
-      
-      // 1. Save Today's Raw Data (to health_data)
-      _saveDailyRawData(dateId: _currentDayId, customDate: now);
-      
-      // 2. Update/Verify the Past 7 Day Average (to health_data_avg)
-      // (Even though "Past" doesn't change during the day, we update timestamp 
-      //  or ensure it's synced as requested "update after 1 minute")
-      _calculateAndSavePast7DayAvg(customDate: now);
+      _saveToFirestore(dateId: _currentDayId, customDate: now);
     }
   }
 
-  // --- A. Save Daily Raw Data (To 'health_data') ---
-  Future<void> _saveDailyRawData({String? dateId, DateTime? customDate}) async {
+  Future<void> _saveToFirestore({String? dateId, DateTime? customDate}) async {
     User? user = _auth.currentUser;
     if (user == null) return;
     
+    if (!_isPastAvgCalculated && !isDemoMode.value) {
+      await _calculatePast7DayAverage();
+    }
+
     final DateTime saveDate = customDate ?? DateTime.now();
     final String targetId = dateId ?? DateFormat('yyyy-MM-dd').format(saveDate);
-
-    // Calculate Today's Average for the "Raw" record
-    double avgHr = _dailyCount > 0 ? _dailyHrSum / _dailyCount : 0;
-    double avgSpO2 = _dailyCount > 0 ? _dailySpO2Sum / _dailyCount : 0;
-
-    await _db.collection('users').doc(user.uid)
-        .collection('health_data') // OLD Collection (Day 1 - 7 raw)
-        .doc(targetId) 
-        .set({
-      'date': Timestamp.fromDate(saveDate),
-      'heartRate': avgHr,   // Daily Average
-      'spO2': avgSpO2,      // Daily Average
-      'steps': _dailyMaxSteps,
-      'calories': _dailyMaxCalories,
-      // Internal fields to resume counting if app restarts
-      '_internal_count': _dailyCount,
-      '_internal_hr_sum': _dailyHrSum,
-      '_internal_spo2_sum': _dailySpO2Sum,
-    }, SetOptions(merge: true));
     
-    Get.log("Saved Raw Data to health_data/$targetId");
-  }
-
-  // --- B. Calculate & Save Past 7-Day Avg (To 'health_data_avg') ---
-  Future<void> _calculateAndSavePast7DayAvg({DateTime? customDate}) async {
-    User? user = _auth.currentUser;
-    if (user == null) return;
-
-    final DateTime now = customDate ?? DateTime.now();
-    final String todayId = DateFormat('yyyy-MM-dd').format(now);
-    
-    // 1. Filter History: Past 7 Days (Excluding Today)
-    List<HealthDataPoint> pastDays = _cachedHistoryForAvg.where((d) {
-      String dStr = DateFormat('yyyy-MM-dd').format(d.timestamp);
-      return dStr != todayId; // Strict Exclusion
-    }).toList();
-
-    // Sort descending and take top 7
-    pastDays.sort((a,b) => b.timestamp.compareTo(a.timestamp));
-    if (pastDays.length > 7) {
-      pastDays = pastDays.sublist(0, 7);
+    if (customDate == null || customDate.day == DateTime.now().day) {
+      _lastSaveTime = DateTime.now();
     }
 
-    double sumHR = 0; double sumSpO2 = 0;
-    int sumSteps = 0; int sumCal = 0;
-    int count = 0;
+    try {
+      double publicHR = _cachedPastAvgHR;
+      double publicSpO2 = _cachedPastAvgSpO2;
+      int publicSteps = _cachedPastAvgSteps;
+      int publicCal = _cachedPastAvgCal;
+      
+      Map<String, dynamic> data = {
+        'date': Timestamp.fromDate(saveDate),
+        // REPORT VALUES (Avg of Past 7 Days)
+        'avgHeartRate': double.parse(publicHR.toStringAsFixed(1)),
+        'avgSpO2': double.parse(publicSpO2.toStringAsFixed(1)),
+        'steps': publicSteps, 
+        'calories': publicCal,
+        // RAW DATA STORAGE (Hidden)
+        '_internal_today_hr_sum': _dailyHrSum,
+        '_internal_today_spo2_sum': _dailySpO2Sum,
+        '_internal_today_count': _dailyCount,
+        '_internal_today_max_steps': _dailyMaxSteps,
+        '_internal_today_max_cal': _dailyMaxCalories
+      };
 
-    for (var day in pastDays) {
-      sumHR += day.heartRate;
-      sumSpO2 += day.spO2;
-      sumSteps += day.steps;
-      sumCal += day.calories;
-      count++;
-    }
+      await _db.collection('users').doc(user.uid)
+          .collection('health_data') 
+          .doc(targetId) 
+          .set(data, SetOptions(merge: true));
 
-    // Default if no history
-    double avgHr = 0; double avgSpO2 = 0;
-    int avgSteps = 0; int avgCal = 0;
-
-    if (count > 0) {
-      avgHr = sumHR / count;
-      avgSpO2 = sumSpO2 / count;
-      avgSteps = (sumSteps / count).round();
-      avgCal = (sumCal / count).round();
-    } 
-
-    // 2. Save to NEW Collection: health_data_avg
-    await _db.collection('users').doc(user.uid)
-        .collection('health_data_avg') // NEW COLLECTION
-        .doc(todayId) // Doc ID is Today (representing Avg of Past)
-        .set({
-      'calculatedAt': Timestamp.fromDate(now),
-      'avgHeartRate': double.parse(avgHr.toStringAsFixed(1)),
-      'avgSpO2': double.parse(avgSpO2.toStringAsFixed(1)),
-      'avgSteps': avgSteps,
-      'avgCalories': avgCal,
-      'daysIncluded': count,
-      'note': "Average of past 7 days (excluding today)"
-    }, SetOptions(merge: true));
-
-    Get.log("Saved Avg to health_data_avg/$todayId (Days: $count)");
-  }
-
-  Future<void> _forceUpdate() async {
-    if (_currentDayId.isNotEmpty) {
-      final now = DateTime.now();
-      await _saveDailyRawData(dateId: _currentDayId, customDate: now);
-      await _calculateAndSavePast7DayAvg(customDate: now);
+      if (targetId == DateFormat('yyyy-MM-dd').format(DateTime.now())) {
+        _db.collection('users').doc(user.uid).update({
+          'lastHeartRate': publicHR.round(),
+          'lastSpO2': publicSpO2.round(),
+          'lastUpdate': Timestamp.fromDate(saveDate),
+        });
+      }
+      
+      Get.log("Saved Doc $targetId");
+      
+    } catch (e) {
+      Get.log("Error saving: $e");
     }
   }
 
-  // --- Helpers ---
+  Future<void> _forceSave() async {
+    await _saveToFirestore(dateId: _currentDayId, customDate: DateTime.now());
+  }
 
   Future<void> _loadTodayStatsFromFirestore() async {
     User? user = _auth.currentUser;
@@ -465,19 +491,18 @@ class BLEController extends GetxController {
       
       if (doc.exists && doc.data() != null) {
         final data = doc.data()!;
-        _dailyHrSum = (data['_internal_hr_sum'] ?? 0).toDouble();
-        _dailySpO2Sum = (data['_internal_spo2_sum'] ?? 0).toDouble();
-        _dailyCount = (data['_internal_count'] ?? 0);
-        _dailyMaxSteps = (data['steps'] ?? 0);
-        _dailyMaxCalories = (data['calories'] ?? 0);
+        _dailyHrSum = (data['_internal_today_hr_sum'] ?? 0).toDouble();
+        _dailySpO2Sum = (data['_internal_today_spo2_sum'] ?? 0).toDouble();
+        _dailyCount = (data['_internal_today_count'] ?? 0);
+        _dailyMaxSteps = (data['_internal_today_max_steps'] ?? 0);
+        _dailyMaxCalories = (data['_internal_today_max_cal'] ?? 0);
       }
     } catch (e) {
       Get.log("Error loading stats: $e");
     }
   }
 
-  // Fetches raw daily data from 'health_data' to calculate avg
-  Future<void> _fetchRawHistoryForCalculation() async {
+  Future<void> fetch7DayHistory() async {
     User? user = _auth.currentUser;
     if (user == null) return;
 
@@ -490,30 +515,33 @@ class BLEController extends GetxController {
           .doc(user.uid)
           .collection('health_data')
           .where('date', isGreaterThan: Timestamp.fromDate(pastLimit))
-          .orderBy('date', descending: true)
+          .orderBy('date', descending: false)
           .get();
 
-      List<HealthDataPoint> loaded = [];
+      List<HealthDataPoint> loadedData = [];
       for (var doc in snapshot.docs) {
         final data = doc.data();
-        loaded.add(HealthDataPoint(
+        int rawSteps = (data['_internal_today_max_steps'] ?? data['steps'] ?? 0);
+        int rawCal = (data['_internal_today_max_cal'] ?? data['calories'] ?? 0);
+        int displayHR = (data['avgHeartRate'] as num?)?.toInt() ?? 0;
+        int displaySpO2 = (data['avgSpO2'] as num?)?.toInt() ?? 0;
+
+        loadedData.add(HealthDataPoint(
           timestamp: (data['date'] as Timestamp).toDate(),
-          spO2: (data['spO2'] as num?)?.toInt() ?? 0,
-          heartRate: (data['heartRate'] as num?)?.toInt() ?? 0,
-          steps: data['steps'] ?? 0,
-          calories: data['calories'] ?? 0,
+          spO2: displaySpO2,
+          heartRate: displayHR,
+          steps: rawSteps, 
+          calories: rawCal,
         ));
       }
-      _cachedHistoryForAvg = loaded;
-      // Also update UI list (for other tabs)
-      healthDataHistory.assignAll(loaded);
+      healthDataHistory.assignAll(loadedData); 
     } catch (e) {
-      Get.log("Error fetching raw history: $e");
+      Get.log("Error loading history: $e");
     }
   }
 
   // ====================================================
-  // 6. DEMO MODE
+  // 6. DEMO MODE 
   // ====================================================
 
   void startDemoMode() {
@@ -522,55 +550,86 @@ class BLEController extends GetxController {
     rawDataLog.clear();
     Get.offAll(() => const HomeScreen());
     
-    _generateFakeDataForCollections(); 
+    _generateFakeStrictHistory(); 
 
     _demoTimer?.cancel();
     _demoTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      _generateFakeBLEData();
+      _generateFakeData();
     });
   }
 
-  // Populates 'health_data' with past days so we can calc avg
-  Future<void> _generateFakeDataForCollections() async {
+  Future<void> _generateFakeStrictHistory() async {
     healthDataHistory.clear();
     final now = DateTime.now();
+    List<Map<String, dynamic>> rawDays = [];
     
-    // 1. Fill 'health_data' (Past 14 Days)
-    for(int i=14; i>=0; i--) {
-      DateTime d = now.subtract(Duration(days: i));
-      String id = DateFormat('yyyy-MM-dd').format(d);
-      
+    for(int i=14; i>0; i--) {
+      int count = 100;
       int steps = 3000 + _random.nextInt(4000);
       int cal = (steps * 0.04).round();
       double hr = 70 + _random.nextInt(20).toDouble();
       
+      rawDays.add({
+        'date': now.subtract(Duration(days: i)),
+        'steps': steps, 'cal': cal, 'hr': hr, 'count': count
+      });
+    }
+
+    for (int i = 0; i < 7; i++) {
+      int currentIndex = 7 + i; 
+      Map<String, dynamic> todayRaw = rawDays[currentIndex];
+      DateTime date = todayRaw['date'];
+      String dateId = DateFormat('yyyy-MM-dd').format(date);
+      
+      double sumHR = 0; int sumSteps = 0;
+      for(int k=1; k<=7; k++) {
+        var prev = rawDays[currentIndex - k];
+        sumHR += prev['hr'];
+        sumSteps += (prev['steps'] as int);
+      }
+      
+      double saveAvgHR = sumHR / 7;
+      int saveAvgSteps = (sumSteps / 7).round();
+      int saveAvgCal = (saveAvgSteps * 0.04).round();
+
       await _db.collection('users').doc(_auth.currentUser!.uid)
-          .collection('health_data')
-          .doc(id).set({
-        'date': Timestamp.fromDate(d),
-        'heartRate': hr,
-        'spO2': 98.0,
-        'steps': steps,
-        'calories': cal,
-        '_internal_count': 100
+          .collection('health_data') 
+          .doc(dateId) 
+          .set({
+        'date': Timestamp.fromDate(date),
+        'avgHeartRate': saveAvgHR,
+        'avgSpO2': 98.0,
+        'steps': saveAvgSteps, 
+        'calories': saveAvgCal, 
+        '_internal_today_max_steps': todayRaw['steps'],
+        '_internal_today_max_cal': todayRaw['cal'],
+        '_internal_today_hr_sum': todayRaw['hr'] * 100, 
+        '_internal_today_count': 100
       }, SetOptions(merge: true));
+      
+      healthDataHistory.add(HealthDataPoint(
+        timestamp: date,
+        spO2: 98,
+        heartRate: saveAvgHR.round(),
+        steps: saveAvgSteps,
+        calories: saveAvgCal
+      ));
     }
     
-    // 2. Refresh cache
-    await _fetchRawHistoryForCalculation();
-    // 3. Trigger Avg Calculation
-    await _calculateAndSavePast7DayAvg();
+    _cachedPastAvgHR = 75; 
+    _cachedPastAvgSteps = 5000;
+    _isPastAvgCalculated = true;
+
+    _dailyCount = 0; _dailyHrSum = 0; _dailySpO2Sum = 0; _dailyMaxSteps = 0; _dailyMaxCalories = 0;
   }
 
-  void _generateFakeBLEData() {
-    // Generate values
+  void _generateFakeData() {
     bool triggerHigh = _random.nextInt(10) > 8; 
     int currentHR = triggerHigh ? 170 + _random.nextInt(20) : 65 + _random.nextInt(25);
     int currentSpO2 = triggerHigh ? 88 + _random.nextInt(5) : 95 + _random.nextInt(5);
     _demoSteps += 15;
     _demoCalories += 1;
 
-    // Simulate Parsing
     String fakeRawString = "$currentSpO2,$currentHR,$_demoSteps,$_demoCalories";
     List<int> fakeBytes = utf8.encode(fakeRawString);
     _parseHealthData(fakeBytes); 
