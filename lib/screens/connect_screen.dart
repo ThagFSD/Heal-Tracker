@@ -1,5 +1,3 @@
-// lib/screens/connect_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:get/get.dart';
@@ -23,13 +21,7 @@ class ConnectScreen extends StatelessWidget {
             },
             icon: const Icon(Icons.play_circle_fill),
             label: Text('run_demo'.tr),
-            // ===========================================
-            // SỬA LỖI Ở ĐÂY: Xóa 'style' gán cứng màu xám
-            // ===========================================
             style: ElevatedButton.styleFrom(
-              // backgroundColor: Colors.blueGrey[700], // <-- XÓA DÒNG NÀY
-              // foregroundColor: Colors.white, // <-- XÓA DÒNG NÀY
-              // Nút này bây giờ sẽ tự động lấy style màu cam từ Theme
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               textStyle: const TextStyle(fontSize: 16),
             ),
@@ -48,14 +40,10 @@ class ConnectScreen extends StatelessWidget {
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          // ===========================================
-                          // THAY ĐỔI NHỎ: Đảm bảo vòng xoay màu trắng
-                          // ===========================================
                           color: Colors.white,
                         ))
                     : const Icon(Icons.search),
                 label: Text(bleController.isScanning.value ? 'scanning'.tr : 'scan_devices'.tr),
-                // (Nút này không có style màu nên nó đã tự động dùng màu cam)
               )),
           const SizedBox(height: 10),
           const Divider(indent: 20, endIndent: 20), 

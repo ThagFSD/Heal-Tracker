@@ -1,5 +1,3 @@
-// lib/screens/settings_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -21,9 +19,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late DateTime _selectedBirthday;
   late TextEditingController _heightController;
   late TextEditingController _weightController;
-  // ===========================================
-  // THAY ĐỔI MỚI: Thêm controller cho SĐT
-  // ===========================================
   late TextEditingController _phoneController;
   
   final _formKey = GlobalKey<FormState>();
@@ -35,9 +30,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _selectedBirthday = profileController.birthday.value ?? DateTime.now();
     _heightController = TextEditingController(text: profileController.height.value.toString());
     _weightController = TextEditingController(text: profileController.weight.value.toString());
-    // ===========================================
-    // THAY ĐỔI MỚI: Khởi tạo SĐT
-    // ===========================================
     _phoneController = TextEditingController(text: profileController.relativePhone.value);
   }
 
@@ -63,17 +55,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
 void _saveProfile() {
     if (_formKey.currentState!.validate()) {
-      // ===========================================
-      // THAY ĐỔI MỚI: Gọi saveProfile mới
-      // ===========================================
       profileController.saveProfile(
         _selectedGender ?? 'other',
         _selectedBirthday,
         int.parse(_heightController.text),
         int.parse(_weightController.text),
-        _phoneController.text, // <-- Truyền SĐT
+        _phoneController.text, 
       );
-      Get.back(); // Chỉ cần quay lại
+      Get.back(); 
       Get.snackbar(
         "Đã lưu",
         "Thông tin cá nhân của bạn đã được cập nhật.",
@@ -90,7 +79,6 @@ void _saveProfile() {
         padding: const EdgeInsets.all(24.0),
         child: Column(
           children: [
-            // Card chọn ngôn ngữ (giữ nguyên)
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -136,7 +124,6 @@ void _saveProfile() {
             ),
             const SizedBox(height: 24),
             
-            // Card thông tin cá nhân
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -154,7 +141,6 @@ void _saveProfile() {
                       ),
                       const SizedBox(height: 24),
                       
-                      // Giới tính (giữ nguyên)
                       DropdownButtonFormField<String>(
                         value: _selectedGender,
                         items: ['male', 'female', 'other'].map((String value) {
@@ -191,7 +177,6 @@ void _saveProfile() {
                       ),
                       const SizedBox(height: 16),
                 
-                      // Chiều cao (giữ nguyên)
                       TextFormField(
                         controller: _heightController,
                         decoration: InputDecoration(
@@ -209,7 +194,6 @@ void _saveProfile() {
                       ),
                       const SizedBox(height: 16),
                 
-                      // Cân nặng (giữ nguyên)
                       TextFormField(
                         controller: _weightController,
                         decoration: InputDecoration(
@@ -227,9 +211,6 @@ void _saveProfile() {
                       ),
                       const SizedBox(height: 16),
 
-                      // ===========================================
-                      // THAY ĐỔI MỚI: Thêm trường SĐT
-                      // ===========================================
                       TextFormField(
                         controller: _phoneController,
                         decoration: InputDecoration(
@@ -237,10 +218,10 @@ void _saveProfile() {
                           hintText: 'phone_hint'.tr,
                           border: const OutlineInputBorder(),
                           prefixIcon: const Icon(Icons.phone),
-                          prefixText: "+84 ", // Mã vùng +84
+                          prefixText: "+84 ", 
                           prefixStyle: TextStyle(
                             fontSize: 16,
-                            color: Theme.of(context).textTheme.bodyLarge?.color // Tự động đổi màu
+                            color: Theme.of(context).textTheme.bodyLarge?.color 
                           ),
                         ),
                         keyboardType: TextInputType.phone,

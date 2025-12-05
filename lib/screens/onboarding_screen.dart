@@ -1,11 +1,7 @@
-// lib/screens/onboarding_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
-
 import '../controllers/profile_controller.dart';
-import 'connect_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -21,9 +17,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   DateTime _selectedBirthday = DateTime.now();
   final TextEditingController _heightController = TextEditingController();
   final TextEditingController _weightController = TextEditingController();
-  // ===========================================
-  // THAY ĐỔI MỚI: Thêm controller cho SĐT
-  // ===========================================
   final TextEditingController _phoneController = TextEditingController();
   
   final _formKey = GlobalKey<FormState>();
@@ -50,9 +43,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   void _saveAndProceed() {
     if (_formKey.currentState!.validate()) {
-      // ===========================================
-      // THAY ĐỔI MỚI: Chỉ cần gọi saveProfile
-      // ===========================================
       profileController.saveProfile(
         _selectedGender!,
         _selectedBirthday,
@@ -60,8 +50,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         int.parse(_weightController.text),
         _phoneController.text, 
       );
-      // Get.offAll(() => ConnectScreen()); // <-- XÓA DÒNG NÀY
-      // AuthController sẽ tự động điều hướng
     }
   }
 
@@ -83,7 +71,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
               const SizedBox(height: 32),
               
-              // Giới tính (giữ nguyên)
               DropdownButtonFormField<String>(
                 value: _selectedGender,
                 items: ['male', 'female', 'other'].map((String value) {
@@ -105,7 +92,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
               const SizedBox(height: 16),
               
-              // Sinh nhật (giữ nguyên)
               TextFormField(
                 readOnly: true,
                 controller: TextEditingController(
@@ -120,7 +106,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
               const SizedBox(height: 16),
               
-              // Chiều cao (giữ nguyên)
               TextFormField(
                 controller: _heightController,
                 decoration: InputDecoration(
@@ -138,7 +123,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Cân nặng (giữ nguyên)
               TextFormField(
                 controller: _weightController,
                 decoration: InputDecoration(
@@ -156,9 +140,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
               const SizedBox(height: 16),
 
-              // ===========================================
-              // THAY ĐỔI MỚI: Thêm trường SĐT
-              // ===========================================
               TextFormField(
                 controller: _phoneController,
                 decoration: InputDecoration(
@@ -166,14 +147,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   hintText: 'phone_hint'.tr,
                   border: const OutlineInputBorder(),
                   prefixIcon: const Icon(Icons.phone),
-                  prefixText: "+84 ", // Mã vùng +84
+                  prefixText: "+84 ", 
                   prefixStyle: TextStyle(
                     fontSize: 16,
-                    color: Theme.of(context).textTheme.bodyLarge?.color // Tự động đổi màu Sáng/Tối
+                    color: Theme.of(context).textTheme.bodyLarge?.color 
                   ),
                 ),
                 keyboardType: TextInputType.phone,
-                // Kiểm tra 9 số (ví dụ: 912345678)
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'phone_validation_required'.tr;
@@ -185,7 +165,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   return null;
                 },
               ),
-              // ===========================================
 
               const SizedBox(height: 48),
               

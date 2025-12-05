@@ -16,11 +16,7 @@ import 'profile_controller.dart';
 import 'auth_controller.dart'; 
 
 class BLEController extends GetxController {
-  // ====================================================
-  // 1. VARIABLES
-  // ====================================================
-  
-  // --- BLE ---
+  // BLE
   var scannedDevices = <BluetoothDevice>[].obs;
   var connectedDevice = Rxn<BluetoothDevice>();
   BluetoothCharacteristic? targetCharacteristic; 
@@ -28,7 +24,7 @@ class BLEController extends GetxController {
   StreamSubscription? _dataSubscription;
   StreamSubscription? _connectionStateSubscription;
 
-  // --- UI STATE (Real-time updates) ---
+  // UI STATE 
   var spO2 = "--".obs;
   var heartRate = "--".obs;
   var steps = "--".obs;
@@ -36,7 +32,7 @@ class BLEController extends GetxController {
   var activityLevel = "Nghỉ ngơi".obs; 
   var isScanning = false.obs;
 
-  // --- FIRESTORE BUFFER (Throttled) ---
+  // FIRESTORE BUFFER 
   DateTime? _lastSaveTime; 
   String _currentDayId = ""; 
   
@@ -54,7 +50,7 @@ class BLEController extends GetxController {
   int _cachedPastAvgCal = 0;
   bool _isPastAvgCalculated = false;
   
-  // --- HISTORY & DEMO ---
+  // HISTORY & DEMO 
   var healthDataHistory = <HealthDataPoint>[].obs; 
   Timer? _demoTimer;
   final Random _random = Random();
@@ -68,10 +64,6 @@ class BLEController extends GetxController {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   DateTime? _lastWarningTime; 
 
-  // ====================================================
-  // 2. INIT
-  // ====================================================
-
   @override
   void onInit() {
     super.onInit();
@@ -80,9 +72,6 @@ class BLEController extends GetxController {
     _currentDayId = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
     try {
-      // Safe way to listen for auth changes without error if controller not ready immediately
-      // Using Get.isRegistered check inside ever or delay might help, 
-      // but putting AuthController first in main ensures it is ready.
       final authController = Get.find<AuthController>();
       ever(authController.firebaseUser, (User? user) {
         if (user != null) {
@@ -120,7 +109,7 @@ class BLEController extends GetxController {
   }
 
   // ====================================================
-  // 3. BLE LOGIC
+  // BLE LOGIC
   // ====================================================
   
   void startScan() async {
@@ -228,7 +217,7 @@ class BLEController extends GetxController {
   }
 
   // ====================================================
-  // 4. DATA PARSING
+  // DATA PARSING
   // ====================================================
 
   void _parseHealthData(List<int> data) {
@@ -291,14 +280,12 @@ class BLEController extends GetxController {
   }
 
   void _triggerWarning(bool hrDanger, bool spo2Danger, int hr, int spo2) {
-    // Cooldown
     if (_lastWarningTime != null && 
         DateTime.now().difference(_lastWarningTime!).inSeconds < 10) return;
     _lastWarningTime = DateTime.now();
 
     String message = "";
 
-    // [FIX] Use .trParams for translated warning messages
     if (hrDanger && spo2Danger) {
       message = 'warning_high_hr_low_spo2'.trParams({
         'hr': hr.toString(),
@@ -315,7 +302,7 @@ class BLEController extends GetxController {
     }
 
     Get.snackbar(
-      'warning_title'.tr, // "⚠️ HEALTH WARNING!" or translated
+      'warning_title'.tr, 
       message,
       backgroundColor: Colors.red, 
       colorText: Colors.white,
@@ -328,24 +315,32 @@ class BLEController extends GetxController {
   }
 
   // ====================================================
-  // 5. FIRESTORE LOGIC: PAST 7 DAYS ONLY
+  // FIRESTORE LOGIC
   // ====================================================
 
-  // Calculate the average of (Today-7 to Today-1)
+  // Calculate Avg of Strict Previous 7 Days (Excluding Today)
   Future<void> _calculatePast7DayAverage() async {
     User? user = _auth.currentUser;
     if (user == null) return;
     
     final now = DateTime.now();
-    final startRange = now.subtract(const Duration(days: 8));
-    final endRange = now.subtract(const Duration(days: 0)); 
+    // Normalize to get the start of TODAY (00:00:00)
+    final DateTime todayMidnight = DateTime(now.year, now.month, now.day);
+
+    // Define Range
+    // End: The very beginning of today (exclusive),stop at yesterday 23:59:59
+    final DateTime endRange = todayMidnight; 
+    
+    // Start: 7 days before today (inclusive)
+    final DateTime startRange = todayMidnight.subtract(const Duration(days: 7));
 
     try {
       final snapshot = await _db
           .collection('users')
           .doc(user.uid)
           .collection('health_data')
-          .where('date', isGreaterThan: Timestamp.fromDate(startRange))
+          // Query: date >= startRange AND date < endRange
+          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startRange))
           .where('date', isLessThan: Timestamp.fromDate(endRange))
           .get();
 
@@ -381,7 +376,7 @@ class BLEController extends GetxController {
       }
       
       _isPastAvgCalculated = true;
-      Get.log("Calculated Past Avg (Count: $count): $_cachedPastAvgHR BPM, $_cachedPastAvgSteps Steps");
+      Get.log("Calculated Past 7 Days Avg (Excluding Today) - Range: ${DateFormat('MM/dd').format(startRange)} to ${DateFormat('MM/dd').format(endRange.subtract(const Duration(seconds: 1)))}");
 
     } catch (e) {
       Get.log("Error calculating past avg: $e");
@@ -424,7 +419,9 @@ class BLEController extends GetxController {
     User? user = _auth.currentUser;
     if (user == null) return;
     
-    if (!_isPastAvgCalculated && !isDemoMode.value) {
+    // Force recalculation every time we save  
+    // This allows the "Past 7 Days" avg to update dynamically in the background.
+    if (!isDemoMode.value) {
       await _calculatePast7DayAverage();
     }
 
@@ -441,6 +438,7 @@ class BLEController extends GetxController {
       int publicSteps = _cachedPastAvgSteps;
       int publicCal = _cachedPastAvgCal;
       
+      // repare Data for Main Collection
       Map<String, dynamic> data = {
         'date': Timestamp.fromDate(saveDate),
         // REPORT VALUES (Avg of Past 7 Days)
@@ -456,10 +454,24 @@ class BLEController extends GetxController {
         '_internal_today_max_cal': _dailyMaxCalories
       };
 
+      // Save to EXISTING collection 'health_data'
       await _db.collection('users').doc(user.uid)
           .collection('health_data') 
           .doc(targetId) 
           .set(data, SetOptions(merge: true));
+
+      // Save to NEW collection 'health_data_avg'
+      await _db.collection('users').doc(user.uid)
+          .collection('health_data_avg') 
+          .doc(targetId) 
+          .set({
+            'date': Timestamp.fromDate(saveDate),
+            'avg_7days_heart_rate': double.parse(publicHR.toStringAsFixed(1)),
+            'avg_7days_spo2': double.parse(publicSpO2.toStringAsFixed(1)),
+            'avg_7days_steps': publicSteps,
+            'avg_7days_calories': publicCal,
+            'last_updated': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
 
       if (targetId == DateFormat('yyyy-MM-dd').format(DateTime.now())) {
         _db.collection('users').doc(user.uid).update({
@@ -469,7 +481,7 @@ class BLEController extends GetxController {
         });
       }
       
-      Get.log("Saved Doc $targetId");
+      Get.log("Saved Doc $targetId to 'health_data' and 'health_data_avg'");
       
     } catch (e) {
       Get.log("Error saving: $e");
@@ -541,7 +553,7 @@ class BLEController extends GetxController {
   }
 
   // ====================================================
-  // 6. DEMO MODE 
+  // DEMO MODE 
   // ====================================================
 
   void startDemoMode() {
@@ -563,24 +575,30 @@ class BLEController extends GetxController {
     final now = DateTime.now();
     List<Map<String, dynamic>> rawDays = [];
     
+    // Generate 14 days of random data
     for(int i=14; i>0; i--) {
       int count = 100;
-      int steps = 3000 + _random.nextInt(4000);
+      int steps = 3000 + _random.nextInt(4000); 
       int cal = (steps * 0.04).round();
-      double hr = 70 + _random.nextInt(20).toDouble();
+      double hr = 70 + _random.nextInt(20).toDouble(); 
       
       rawDays.add({
         'date': now.subtract(Duration(days: i)),
-        'steps': steps, 'cal': cal, 'hr': hr, 'count': count
+        'steps': steps, 
+        'cal': cal, 
+        'hr': hr, 
+        'count': count
       });
     }
 
+    // Process and Save to Firestore
     for (int i = 0; i < 7; i++) {
       int currentIndex = 7 + i; 
       Map<String, dynamic> todayRaw = rawDays[currentIndex];
       DateTime date = todayRaw['date'];
       String dateId = DateFormat('yyyy-MM-dd').format(date);
       
+      // Calculate rolling average for that specific day in the past
       double sumHR = 0; int sumSteps = 0;
       for(int k=1; k<=7; k++) {
         var prev = rawDays[currentIndex - k];
@@ -597,7 +615,7 @@ class BLEController extends GetxController {
           .doc(dateId) 
           .set({
         'date': Timestamp.fromDate(date),
-        'avgHeartRate': saveAvgHR,
+        'avgHeartRate': double.parse(saveAvgHR.toStringAsFixed(1)),
         'avgSpO2': 98.0,
         'steps': saveAvgSteps, 
         'calories': saveAvgCal, 
@@ -616,11 +634,33 @@ class BLEController extends GetxController {
       ));
     }
     
-    _cachedPastAvgHR = 75; 
-    _cachedPastAvgSteps = 5000;
-    _isPastAvgCalculated = true;
+    // =========================================================
+    // CALCULATE REAL AVERAGE FOR DASHBOARD 
+    // =========================================================
+    double totalHR = 0;
+    int totalSteps = 0;
+    int totalCal = 0;
 
-    _dailyCount = 0; _dailyHrSum = 0; _dailySpO2Sum = 0; _dailyMaxSteps = 0; _dailyMaxCalories = 0;
+    for (int i = 7; i < 14; i++) {
+      totalHR += rawDays[i]['hr'];
+      totalSteps += (rawDays[i]['steps'] as int);
+      totalCal += (rawDays[i]['cal'] as int);
+    }
+
+    _cachedPastAvgHR = totalHR / 7;
+    _cachedPastAvgSteps = (totalSteps / 7).round();
+    _cachedPastAvgCal = (totalCal / 7).round();
+    _cachedPastAvgSpO2 = 98.0; 
+
+    _isPastAvgCalculated = true; 
+    
+    _dailyCount = 0; 
+    _dailyHrSum = 0; 
+    _dailySpO2Sum = 0; 
+    _dailyMaxSteps = 0; 
+    _dailyMaxCalories = 0;
+    
+    Get.log("Demo Mode Started: Real Avg HR calculated as $_cachedPastAvgHR");
   }
 
   void _generateFakeData() {

@@ -1,5 +1,3 @@
-// lib/screens/tabs/reports_tab.dart
-
 import 'dart:math';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -33,18 +31,13 @@ class ReportsTab extends StatefulWidget {
   @override
   State<ReportsTab> createState() => _ReportsTabState();
 
-  // ==============================================================
-  // FIX: Shift Window to "Yesterday" (Past 7 Days excluding Today)
-  // ==============================================================
   List<DailySummary> generateDailyReports(List<HealthDataPoint> history) {
     if (history.isEmpty) return [];
 
     final now = DateTime.now();
-    // Start from Yesterday (ignore partial data from Today)
     final yesterday = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 1));
     final startDay = yesterday.subtract(const Duration(days: 6)); 
 
-    // Filter: Date must be AFTER or ON startDay AND BEFORE or ON yesterday
     final recentData = history.where((d) {
       final date = DateTime(d.timestamp.year, d.timestamp.month, d.timestamp.day);
       return !date.isBefore(startDay) && !date.isAfter(yesterday);
@@ -65,9 +58,6 @@ class ReportsTab extends StatefulWidget {
     groupedData.forEach((day, dataList) {
       if (dataList.isEmpty) return;
       
-      // Since BLEController now stores "Rolling Averages" in Firestore, 
-      // the data points here are already averages. We just take them directly.
-      // (Or average them if multiple entries exist per day, which shouldn't happen with new logic)
       double totalHeartRate = dataList.map((d) => d.heartRate).reduce((a, b) => a + b).toDouble();
       double totalSpO2 = dataList.map((d) => d.spO2).reduce((a, b) => a + b).toDouble();
       int maxSteps = dataList.map((d) => d.steps).reduce(max);
@@ -189,10 +179,6 @@ class _ReportsTabState extends State<ReportsTab> {
       ),
     );
   }
-
-  // ... (Keep existing Widgets: _buildWorkoutHistoryList, _buildOverallSummaryCard, etc.)
-  // (Paste the rest of the file content here from the previous version provided in Turn 3)
-  // ...
 
   Widget _buildWorkoutHistoryList() {
     final user = FirebaseAuth.instance.currentUser;

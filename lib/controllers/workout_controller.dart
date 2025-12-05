@@ -1,10 +1,8 @@
-// lib/controllers/workout_controller.dart
-
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart'; // [NEW]
-import 'package:firebase_auth/firebase_auth.dart';     // [NEW]
+import 'package:cloud_firestore/cloud_firestore.dart'; 
+import 'package:firebase_auth/firebase_auth.dart';    
 import 'package:get/get.dart';
-import '../models/workout_session.dart';               // [NEW]
+import '../models/workout_session.dart';              
 import 'ble_controller.dart';
 import 'profile_controller.dart';
 
@@ -31,7 +29,6 @@ class WorkoutController extends GetxController {
   int _initialSteps = 0;
   int _initialCalories = 0;
   
-  // Lưu thời gian bắt đầu để lưu vào history
   DateTime? _startTime;
 
   void startWorkout(String goalType, int goalValue) {
@@ -57,13 +54,12 @@ class WorkoutController extends GetxController {
     _listenToMetrics();
   }
 
-  // [UPDATED] End Workout and Save to Firebase
+  // End Workout and Save to Firebase
   Future<void> endWorkout() async {
     bleController.sendCommand("E");
 
-    // 1. Lưu session hiện tại vào biến tạm trước khi reset
     final finishedSession = WorkoutSession(
-      id: '', // Firestore sẽ tự tạo ID
+      id: '', 
       startTime: _startTime ?? DateTime.now(),
       durationSeconds: sessionDuration.value.inSeconds,
       steps: sessionSteps.value,
@@ -72,13 +68,11 @@ class WorkoutController extends GetxController {
       goalType: goalDisplay.value,
     );
 
-    // 2. Reset trạng thái
     workoutState.value = WorkoutState.idle;
     _sessionTimer?.cancel();
     _stepsSubscription?.cancel();
     _caloriesSubscription?.cancel();
 
-    // 3. Lưu vào Firebase
     await _saveSessionToFirebase(finishedSession);
   }
 
@@ -110,7 +104,6 @@ class WorkoutController extends GetxController {
     _stepsSubscription?.cancel();
     _stepsSubscription = bleController.steps.listen((totalStepsStr) {
       int totalSteps = int.tryParse(totalStepsStr) ?? 0;
-      // Đảm bảo không âm nếu thiết bị reset
       int diff = totalSteps - _initialSteps;
       if (diff < 0) _initialSteps = totalSteps; 
       

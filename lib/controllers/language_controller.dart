@@ -29,11 +29,11 @@ class LanguageController extends GetxController {
   void switchLanguage(String languageCode) {
     if (languageCode == currentLanguage.value) return;
 
-    // 1. Update Storage & Observable
+    // Update Storage & Observable
     _box.write(_key, languageCode);
     currentLanguage.value = languageCode;
 
-    // 2. Update App Locale
+    // Update App Locale
     var locale = languageCode == 'vi'
         ? const Locale('vi', 'VN')
         : const Locale('en', 'US');

@@ -1,5 +1,3 @@
-// lib/screens/tabs/charts_tab.dart
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -13,7 +11,7 @@ class ChartsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container( // Thêm container này để lấy màu nền
+    return Container( 
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Obx(() {
         final history = bleController.healthDataHistory;
@@ -24,9 +22,6 @@ class ChartsTab extends StatelessWidget {
           return Center(
             child: Text(
               'no_chart_data'.tr,
-              // ===========================================
-              // SỬA LỖI: Dùng màu chữ phụ của Theme
-              // ===========================================
               style: TextStyle(
                 fontSize: 16, 
                 color: Theme.of(context).textTheme.bodySmall?.color
@@ -44,7 +39,7 @@ class ChartsTab extends StatelessWidget {
                 context, 
                 title: 'heart_rate_bpm'.tr,
                 chart: _buildHealthLineChart(
-                  context, // <-- Truyền context
+                  context, 
                   dataPoints,
                   Colors.red,
                   (data) => data.heartRate.toDouble(),
@@ -55,7 +50,7 @@ class ChartsTab extends StatelessWidget {
                 context, 
                 title: 'spo2_percent'.tr,
                 chart: _buildHealthLineChart(
-                  context, // <-- Truyền context
+                  context, 
                   dataPoints,
                   Colors.blue,
                   (data) => data.spO2.toDouble(),
@@ -66,7 +61,7 @@ class ChartsTab extends StatelessWidget {
                 context, 
                 title: 'steps_chart'.tr,
                 chart: _buildHealthLineChart(
-                  context, // <-- Truyền context
+                  context, 
                   dataPoints,
                   Colors.green,
                   (data) => data.steps.toDouble(),
@@ -77,7 +72,7 @@ class ChartsTab extends StatelessWidget {
                 context, 
                 title: 'calories_chart'.tr,
                 chart: _buildHealthLineChart(
-                  context, // <-- Truyền context
+                  context, 
                   dataPoints,
                   Colors.orange,
                   (data) => data.calories.toDouble(),
@@ -90,12 +85,8 @@ class ChartsTab extends StatelessWidget {
     );
   }
 
-  /// Widget Card chung cho mỗi biểu đồ
   Widget _buildChartCard(BuildContext context, {required String title, required Widget chart}) {
     return Card(
-      // ===========================================
-      // THAY ĐỔI MỚI: Lấy màu thẻ từ Theme
-      // ===========================================
       color: Theme.of(context).cardColor, 
       elevation: 2,
       shadowColor: Colors.black.withOpacity(0.1),
@@ -127,7 +118,6 @@ class ChartsTab extends StatelessWidget {
       return FlSpot(entry.key.toDouble(), getValue(entry.value) ?? 0.0);
     }).toList();
 
-    // Lấy màu chữ phụ (mờ) từ Theme
     final Color textColor = Theme.of(context).textTheme.bodySmall?.color ?? Colors.grey;
 
     return LineChart(

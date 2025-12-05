@@ -1,10 +1,8 @@
-// lib/screens/home_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/ble_controller.dart'; 
 import '../controllers/theme_controller.dart';
-import '../controllers/auth_controller.dart'; // <-- IMPORT MỚI
+import '../controllers/auth_controller.dart'; 
 import 'tabs/dashboard_tab.dart';
 import 'tabs/charts_tab.dart';
 import 'tabs/reports_tab.dart';
@@ -92,9 +90,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                     )),
                 const Divider(),
-                // ===========================================
-                // THAY ĐỔI MỚI: Thêm nút Đăng xuất
-                // ===========================================
                 ListTile(
                   leading: const Icon(Icons.logout, color: Colors.red),
                   title: const Text('Đăng xuất', style: TextStyle(color: Colors.red)),

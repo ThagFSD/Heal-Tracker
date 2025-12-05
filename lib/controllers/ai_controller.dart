@@ -5,7 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-import 'language_controller.dart'; // Import LanguageController
+import 'language_controller.dart'; 
 
 class AIController extends GetxController {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -19,9 +19,9 @@ class AIController extends GetxController {
   // --- AI RESULTS ---
   var bmiValue = 0.0.obs;
   var bmiCategory = "".obs;
-  var weeklyReportTitle = "".obs; // New: Title for the weekly report section
-  var heartRateAssessment = "".obs; // New: e.g., "180 (high)"
-  var spO2Assessment = "".obs; // New: e.g., "100% (normal)"
+  var weeklyReportTitle = "".obs; 
+  var heartRateAssessment = "".obs; 
+  var spO2Assessment = "".obs; 
   var stepsAssessment = "".obs;
   var caloriesAssessment = "".obs;
   var suggestions = <String>[].obs;
@@ -29,9 +29,7 @@ class AIController extends GetxController {
   var solutions = <String>[].obs;
 
   // --- API CONFIG ---
-  // [IMPORTANT] Error 403 usually means this key is invalid or missing.
-  // Ensure you have a valid API key here or it is injected correctly.
-  final String apiKey = " "; 
+  final String apiKey = ""; 
 
   // ==========================================================
   // MAIN FUNCTION: ANALYZE HEALTH
@@ -49,13 +47,13 @@ class AIController extends GetxController {
     hasResult.value = false;
 
     try {
-      // 1. Fetch User Profile
+      // Fetch User Profile
       final userDoc = await _db.collection('users').doc(user.uid).get();
       if (!userDoc.exists) throw "User profile not found";
       final userData = userDoc.data()!;
 
       // Calculate Age
-      int age = 25; // Default
+      int age = 25; // default 
       if (userData['birthday'] != null) {
         DateTime birth = (userData['birthday'] as Timestamp).toDate();
         age = DateTime.now().year - birth.year;
@@ -66,12 +64,12 @@ class AIController extends GetxController {
       int weight = userData['weight'] ?? 65;
       String gender = userData['gender'] ?? 'unknown';
 
-      // 2. Fetch Latest 7-Day Avg Health Data
+      // Fetch Latest 7-Day Avg Health Data
       final healthSnapshot = await _db
           .collection('users')
           .doc(user.uid)
           .collection('health_data_avg')
-          .orderBy('calculatedAt', descending: true)
+          .orderBy('date', descending: true) 
           .limit(1)
           .get();
 
@@ -82,18 +80,20 @@ class AIController extends GetxController {
 
       if (healthSnapshot.docs.isNotEmpty) {
         final hData = healthSnapshot.docs.first.data();
-        avgHR = (hData['avgHeartRate'] as num).toDouble();
-        avgSpO2 = (hData['avgSpO2'] as num).toDouble();
-        avgSteps = (hData['avgSteps'] as num).toInt();
-        avgCal = (hData['avgCalories'] as num).toInt();
+        avgHR = (hData['avg_7days_heart_rate'] as num?)?.toDouble() ?? 0;
+        avgSpO2 = (hData['avg_7days_spo2'] as num?)?.toDouble() ?? 0;
+        avgSteps = (hData['avg_7days_steps'] as num?)?.toInt() ?? 0;
+        avgCal = (hData['avg_7days_calories'] as num?)?.toInt() ?? 0;
+      } else {
+        Get.log("AI Warning: No health_data_avg found for user.");
       }
 
-      // 3. Get Current Language
+      // Get Current Language
       final LanguageController langController = Get.find();
       String languageCode = langController.currentLanguage.value;
       String languageName = languageCode == 'vi' ? 'Vietnamese' : 'English';
 
-      // 4. Prepare Prompt
+      // Prepare Prompt
       final prompt = """
       Act as a professional health coach. Analyze the following user data based on their 7-day average:
       - Age: $age
@@ -123,10 +123,10 @@ class AIController extends GetxController {
       If stats are 0, assume insufficient data but give general advice based on BMI/Age.
       """;
 
-      // 5. Call Gemini API
+      // Call Gemini API
       final responseJson = await _callGeminiWithRetry(prompt);
       
-      // 6. Parse Results
+      // Parse Results
       bmiValue.value = (responseJson['bmi'] as num).toDouble();
       bmiCategory.value = responseJson['bmi_category'] ?? "Unknown";
       weeklyReportTitle.value = responseJson['weekly_report_title'] ?? "Weekly Report";
@@ -160,7 +160,7 @@ class AIController extends GetxController {
     while (retries < maxRetries) {
       try {
         final url = Uri.parse(
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=$apiKey');
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey');
         
         final response = await http.post(
           url,

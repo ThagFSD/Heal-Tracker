@@ -1,5 +1,3 @@
-// lib/controllers/profile_controller.dart
-
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -15,9 +13,8 @@ class ProfileController extends GetxController {
   var weight = 0.obs;
   var relativePhone = "".obs;
 
-  // [NEW] Tính tuổi tự động
   int get age {
-    if (birthday.value == null) return 25; // Mặc định nếu chưa có sinh nhật
+    if (birthday.value == null) return 25; 
     final now = DateTime.now();
     int age = now.year - birthday.value!.year;
     if (now.month < birthday.value!.month || 
@@ -65,8 +62,6 @@ class ProfileController extends GetxController {
 
     try {
       await _db.collection('users').doc(user.uid).set(profileData, SetOptions(merge: true));
-      
-      // Cập nhật giá trị local ngay lập tức để UI phản hồi
       gender.value = newGender;
       birthday.value = newBirthday;
       height.value = newHeight;

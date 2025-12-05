@@ -48,7 +48,7 @@ class _DashboardTabState extends State<DashboardTab> {
           _buildAIAnalysisSection(context), 
           const SizedBox(height: 24),
           
-          // [NEW] Log Section Button
+          // Log Section Button
           Center(
             child: TextButton.icon(
               onPressed: () {
@@ -61,7 +61,7 @@ class _DashboardTabState extends State<DashboardTab> {
             ),
           ),
           
-          // [NEW] Log Section (Visible only if _showLog is true)
+          // Log Section 
           if (_showLog) ...[
             const SizedBox(height: 10),
             _buildDataLogCard(context),
@@ -302,7 +302,7 @@ class _DashboardTabState extends State<DashboardTab> {
     );
   }
 
-  // [NEW] Widget for Data Log (from previous version, now restored)
+  // Widget for Data Log 
   Widget _buildDataLogCard(BuildContext context) {
     Color cardColor = Theme.of(context).cardColor;
     Color textColor = Theme.of(context).textTheme.bodySmall?.color ?? Colors.grey;

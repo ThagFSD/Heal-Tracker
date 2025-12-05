@@ -3,7 +3,6 @@ import 'package:get/get.dart';
 class AppTranslations extends Translations {
   @override
   Map<String, Map<String, String>> get keys => {
-        // TIẾNG ANH
         'en_US': {
           // App
           'app_title': 'Heal Tracker',
@@ -41,11 +40,11 @@ class AppTranslations extends Translations {
           'height': 'Height (cm)',
           'weight': 'Weight (kg)',
           'save_changes': 'Save Changes',
-          // Lựa chọn giới tính
+          // Sex
           'gender_male': 'Male',
           'gender_female': 'Female',
           'gender_other': 'Other',
-          // Ngôn ngữ
+          // Languages
           'lang_en': 'English',
           'lang_vi': 'Vietnamese',
           // Bottom Tab Bar
@@ -106,7 +105,7 @@ class AppTranslations extends Translations {
           'warning_low_spo2': 'Blood oxygen level is low (@spo2%). Focus on breathing.',
         },
         
-        // TIẾNG VIỆT
+        // Vietnammese
         'vi_VN': {
           // App
           'app_title': 'Heal Tracker',
@@ -144,11 +143,11 @@ class AppTranslations extends Translations {
           'height': 'Chiều cao (cm)',
           'weight': 'Cân nặng (kg)',
           'save_changes': 'Lưu Thay đổi',
-          // Lựa chọn giới tính
+          // Sex
           'gender_male': 'Nam',
           'gender_female': 'Nữ',
           'gender_other': 'Khác',
-          // Ngôn ngữ
+          // Language
           'lang_en': 'Tiếng Anh',
           'lang_vi': 'Tiếng Việt',
           // Bottom Tab Bar
